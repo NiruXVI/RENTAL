@@ -1,0 +1,241 @@
+{% extends 'base/users.html' %}
+
+{% block title %}Add New Listing | RentEase{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+<style>
+  .container {
+    max-width: calc(100vw - 2rem) !important;
+    margin: 0 1rem !important;
+    padding: 1rem 0 5rem 0 !important;
+  }
+  .property-image-preview {
+    width: 120px;
+    height: 90px;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    margin: 0.25rem;
+    cursor: zoom-in;
+    transition: box-shadow 0.2s;
+  }
+  .zoom-modal {
+    display: none;
+    position: fixed;
+    z-index: 1050;
+    left: 0; top: 0; width: 100vw; height: 100vh;
+    background: rgba(0,0,0,0.7);
+    align-items: center; justify-content: center;
+  }
+  .zoom-modal img {
+    max-width: 90vw;
+    max-height: 80vh;
+    border-radius: 10px;
+    box-shadow: 0 0 20px #000;
+  }
+  .zoom-modal.active { display: flex; }
+  #map {
+    width: 100%;
+    height: 300px;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    border: 1px solid #ddd;
+  }
+  .verification-section {
+    background: #e3f6fc;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<h2>Add New Listing</h2>
+{% if session['role'] == 'landlord' and user.verified %}
+  {% if not request.args.get('subdivision_prompted') and not request.args.get('address') %}
+    <div class="mb-4">
+      <p>Are you listing a property in a subdivision?</p>
+      <a href="{{ url_for('select_lot') }}" class="btn btn-info me-2">Yes, select from subdivision</a>
+      <a href="{{ url_for('add_listing', subdivision_prompted=1) }}" class="btn btn-secondary">No, continue to manual listing</a>
+    </div>
+  {% else %}
+    <form method="POST" enctype="multipart/form-data" id="listingForm">
+      <div class="mb-3">
+        <label for="title" class="form-label">Property Title</label>
+        <input type="text" id="title" name="title" class="form-control" placeholder="e.g. Cozy Studio Apartment" required
+          value="{{ request.args.get('title', '') }}">
+      </div>
+      <div class="mb-3">
+        <label for="description" class="form-label">Description</label>
+        <textarea id="description" name="description" class="form-control" rows="3" placeholder="Describe the property" required></textarea>
+      </div>
+      <div class="mb-3">
+        <label for="price" class="form-label">Price (₱)</label>
+        <input type="number" id="price" name="price" class="form-control" placeholder="e.g. 10000" required>
+      </div>
+      <div class="mb-3">
+        <label for="address" class="form-label">Location (Type or Pin on Map)</label>
+        <input type="text" id="address" name="address" class="form-control" placeholder="e.g. Downtown Butuan" required
+          value="{{ request.args.get('address', '') }}">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Pin Property Location on Map</label>
+        <div id="map"></div>
+        <input type="hidden" id="latitude" name="latitude" value="{{ request.args.get('latitude', '') }}">
+        <input type="hidden" id="longitude" name="longitude" value="{{ request.args.get('longitude', '') }}">
+        <small class="text-muted">Click on the map to set the exact location.</small>
+      </div>
+      <div class="mb-3">
+        <label for="type" class="form-label">Property Type</label>
+        <select id="type" name="type" class="form-select" required>
+          <option>Apartment</option>
+          <option>House</option>
+          <option>Studio</option>
+        </select>
+      </div>
+      <hr>
+      <div class="verification-section">
+        <h5>Required Property Verification Documents</h5>
+        <p class="text-muted mb-2">
+          Upload at least one proof of ownership or authorization before submitting.<br>
+          <strong>Accepted:</strong> Land Title (TCT/OCT), Tax Declaration, Real Property Tax (RPT) receipt, Deed of Sale, Notarized Authorization Letter + Owner’s Valid ID, Utility Bill, DTI/SEC Certificate, Mayor’s/Barangay Permit.
+        </p>
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            <label>Land Title (TCT/OCT)</label>
+            <input type="file" name="land_title" accept="image/*,application/pdf" class="form-control verification-proof">
+          </div>
+          <div class="col-md-6 mb-3">
+            <label>Tax Declaration</label>
+            <input type="file" name="tax_declaration" accept="image/*,application/pdf" class="form-control verification-proof">
+          </div>
+          <div class="col-md-6 mb-3">
+            <label>Latest Real Property Tax (RPT) Receipt</label>
+            <input type="file" name="rpt_receipt" accept="image/*,application/pdf" class="form-control verification-proof">
+          </div>
+          <div class="col-md-6 mb-3">
+            <label>Deed of Sale</label>
+            <input type="file" name="deed_of_sale" accept="image/*,application/pdf" class="form-control verification-proof">
+          </div>
+          <div class="col-md-6 mb-3">
+            <label>Notarized Authorization Letter (for caretakers/agents)</label>
+            <input type="file" name="authorization_letter" accept="image/*,application/pdf" class="form-control verification-proof">
+          </div>
+          <div class="col-md-6 mb-3">
+            <label>Owner's Valid ID (for caretakers/agents)</label>
+            <input type="file" name="owner_id" accept="image/*,application/pdf" class="form-control verification-proof">
+          </div>
+          <div class="col-md-6 mb-3">
+            <label>Utility Bill (electric, water, internet)</label>
+            <input type="file" name="utility_bill" accept="image/*,application/pdf" class="form-control verification-proof">
+          </div>
+          <div class="col-md-6 mb-3">
+            <label>DTI/SEC Registration Certificate (for agencies)</label>
+            <input type="file" name="dti_sec" accept="image/*,application/pdf" class="form-control verification-proof">
+          </div>
+          <div class="col-md-6 mb-3">
+            <label>Mayor's or Barangay Business Permit (for agencies)</label>
+            <input type="file" name="mayor_permit" accept="image/*,application/pdf" class="form-control verification-proof">
+          </div>
+        </div>
+        <small class="text-danger" id="verificationError" style="display:none;">Please upload at least one verification document before submitting.</small>
+      </div>
+      <hr>
+      <h5>Property Images</h5>
+      <div class="mb-3">
+        <label for="property_images" class="form-label">Upload Property Images (multiple allowed)</label>
+        <input type="file" id="property_images" name="property_images" accept="image/*" class="form-control" multiple onchange="previewImages(event)">
+        <div id="image-preview" class="d-flex flex-wrap mt-2"></div>
+      </div>
+      <button type="submit" class="btn btn-primary">Add Listing</button>
+    </form>
+
+    <!-- Image Zoom Modal -->
+    <div id="zoomModal" class="zoom-modal" onclick="closeZoom()">
+      <img id="zoomImg" src="" alt="Zoomed Image">
+    </div>
+
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script>
+    function previewImages(event) {
+      const files = event.target.files;
+      const preview = document.getElementById('image-preview');
+      preview.innerHTML = '';
+      for (let i = 0; i < files.length; i++) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          const img = document.createElement('img');
+          img.src = e.target.result;
+          img.className = 'property-image-preview';
+          img.onclick = function() { openZoom(e.target.result); };
+          preview.appendChild(img);
+        };
+        reader.readAsDataURL(files[i]);
+      }
+    }
+    function openZoom(src) {
+      document.getElementById('zoomImg').src = src;
+      document.getElementById('zoomModal').classList.add('active');
+    }
+    function closeZoom() {
+      document.getElementById('zoomModal').classList.remove('active');
+    }
+
+    // Leaflet map for picking location, focused on Butuan
+    var map = L.map('map').setView([8.9475, 125.5406], 13); // Butuan City
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    var marker;
+    var lat = "{{ request.args.get('latitude', '') }}";
+    var lng = "{{ request.args.get('longitude', '') }}";
+    if (lat && lng) {
+      var latNum = parseFloat(lat), lngNum = parseFloat(lng);
+      if (!isNaN(latNum) && !isNaN(lngNum)) {
+        marker = L.marker([latNum, lngNum]).addTo(map);
+        map.setView([latNum, lngNum], 17);
+        document.getElementById('latitude').value = latNum;
+        document.getElementById('longitude').value = lngNum;
+      }
+    }
+    map.on('click', function(e) {
+      var lat = e.latlng.lat;
+      var lng = e.latlng.lng;
+      document.getElementById('latitude').value = lat;
+      document.getElementById('longitude').value = lng;
+      if (marker) {
+        marker.setLatLng(e.latlng);
+      } else {
+        marker = L.marker(e.latlng).addTo(map);
+      }
+    });
+
+    // Require at least one verification document before submitting
+    document.getElementById('listingForm').onsubmit = function(e) {
+      var proofInputs = document.querySelectorAll('.verification-proof');
+      var count = 0;
+      for (var i = 0; i < proofInputs.length; i++) {
+        if (proofInputs[i].files.length > 0) {
+          count++;
+        }
+      }
+      if (count < 3) {
+        document.getElementById('verificationError').textContent = 'Please upload at least 3 verification documents before submitting.';
+        document.getElementById('verificationError').style.display = 'block';
+        e.preventDefault();
+        return false;
+      } else {
+        document.getElementById('verificationError').style.display = 'none';
+      }
+    };
+    </script>
+  {% endif %}
+{% elif session['role'] == 'landlord' %}
+  <div class="alert alert-warning">You must be verified to add listings.</div>
+{% else %}
+  <p>You do not have permission to add listings.</p>
+{% endif %}
+{% endblock %}

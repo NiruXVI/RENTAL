@@ -1,0 +1,159 @@
+{% extends 'base/users.html' %}
+{% block title %}Select Subdivision Lot{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+<style>
+  #lotMap { width: 100%; height: 350px; margin-bottom: 1.5rem; border-radius: 8px; }
+</style>
+{% endblock %}
+{% block content %}
+<h2>Select Your Subdivision Lot</h2>
+
+<div class="mb-3">
+  <label for="subdDropdown" class="form-label">Choose Subdivision:</label>
+  <select id="subdDropdown" class="form-select" style="max-width:350px;">
+    <option value="">-- Select Subdivision --</option>
+    {% for subd in subdivisions %}
+      <option value="{{ subd }}">{{ subd }}</option>
+    {% endfor %}
+  </select>
+</div>
+
+<div class="mb-3">
+  <label for="houseDropdown" class="form-label">Choose House/Lot/Unit:</label>
+  <select id="houseDropdown" class="form-select" style="max-width:350px;" disabled>
+    <option value="">-- Select Lot/Unit --</option>
+  </select>
+</div>
+
+<div id="lotMap"></div>
+
+<form id="confirmForm" method="GET" action="{{ url_for('add_listing') }}" style="display:none;">
+  <input type="hidden" name="title" id="selectedTitle">
+  <input type="hidden" name="address" id="selectedAddress">
+  <input type="hidden" name="latitude" id="selectedLat">
+  <input type="hidden" name="longitude" id="selectedLng">
+  <button type="submit" class="btn btn-success">Confirm and Use This Lot</button>
+</form>
+<a href="{{ url_for('add_listing', subdivision_prompted=1) }}" class="btn btn-secondary mt-3">Back to Add Listing</a>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script>
+const houseGeojsonFiles = {
+  'vcdu': 'housevcdu.geojson',
+  'sherwood': 'housesherwood.geojson',
+  'rosewood1': 'houserosewood1.geojson',
+  'princesh': 'houseprincesh.geojson',
+  'miraville': 'housemiraville.geojson',
+  'lumina': 'houselumina.geojson',
+  'josephine': 'housejosephine.geojson',
+  'idealhomes': 'houseidealhomes.geojson',
+  'horizon': 'househorizon.geojson',
+  'happyhomes': 'househappyhomes.geojson',
+  'filinvest': 'housefilinvest.geojson',
+  'fairmont': 'housefairmont.geojson',
+  'camella1': 'housecamella1.geojson',
+  'camella': 'housecamella.geojson'
+};
+
+let map = L.map('lotMap').setView([8.9475, 125.5406], 13);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap contributors'
+}).addTo(map);
+
+let subdivisionLayer = null;
+let selectedMarker = null;
+let houseFeatures = [];
+
+const subdDropdown = document.getElementById('subdDropdown');
+const houseDropdown = document.getElementById('houseDropdown');
+
+subdDropdown.addEventListener('change', function() {
+  const subd = this.value.trim().toLowerCase();
+  if (subdivisionLayer) map.removeLayer(subdivisionLayer);
+  if (selectedMarker) {
+    map.removeLayer(selectedMarker);
+    selectedMarker = null;
+  }
+  houseDropdown.innerHTML = '<option value="">-- Select Lot/Unit --</option>';
+  houseDropdown.disabled = true;
+  houseFeatures = [];
+  document.getElementById('confirmForm').style.display = 'none';
+
+  // Only show the selected subdivision
+  fetch('/geojson/subdivision.geojson')
+    .then(res => res.json())
+    .then(geojson => {
+      const filtered = {
+        ...geojson,
+        features: geojson.features.filter(f =>
+          f.properties.subd_name && f.properties.subd_name.trim().toLowerCase() === subd
+        )
+      };
+      subdivisionLayer = L.geoJSON(filtered, {
+        style: {
+          color: 'cyan',
+          weight: 3,
+          fillColor: 'rgba(0,255,255,0.1)',
+          fillOpacity: 0.1
+        },
+        onEachFeature: function (feature, layer) {
+          if (feature.properties && feature.properties.subd_name) {
+            layer.bindPopup(feature.properties.subd_name);
+          }
+        }
+      }).addTo(map);
+      if (filtered.features.length > 0) {
+        map.fitBounds(subdivisionLayer.getBounds(), {maxZoom: 17});
+      }
+    });
+
+  // Load house points for this subdivision (but don't show them yet)
+  const houseFile = houseGeojsonFiles[subd];
+  if (houseFile) {
+    fetch('/geojson/' + houseFile)
+      .then(res => res.json())
+      .then(geojson => {
+        houseFeatures = geojson.features;
+        houseDropdown.innerHTML = '<option value="">-- Select Lot/Unit --</option>';
+        houseFeatures.forEach((feature, idx) => {
+          const id = feature.properties.house_id || feature.properties.house_name || `Unit ${idx+1}`;
+          houseDropdown.innerHTML += `<option value="${idx}">${id}</option>`;
+        });
+        houseDropdown.disabled = false;
+      });
+  }
+});
+
+houseDropdown.addEventListener('change', function() {
+  const idx = this.value;
+  document.getElementById('confirmForm').style.display = 'none';
+  if (selectedMarker) {
+    map.removeLayer(selectedMarker);
+    selectedMarker = null;
+  }
+  if (idx === "" || !houseFeatures[idx]) return;
+  const feature = houseFeatures[idx];
+  const coords = feature.geometry.coordinates;
+  const latlng = [coords[1], coords[0]];
+  selectedMarker = L.circleMarker(latlng, {
+    radius: 12,
+    color: '#d90429',
+    fillColor: '#ff1744',
+    fillOpacity: 0.95,
+    weight: 3
+  }).addTo(map);
+  const subd = subdDropdown.value;
+  const id = feature.properties.house_id || feature.properties.house_name;
+  selectedMarker.bindPopup(`<strong>${subd}</strong><br>Lot/Unit: ${id}`).openPopup();
+  map.setView(latlng, 17);
+  document.getElementById('selectedTitle').value = `${subd} - Lot/Unit ${id}`;
+  document.getElementById('selectedAddress').value = subd;
+  document.getElementById('selectedLat').value = latlng[0];
+  document.getElementById('selectedLng').value = latlng[1];
+  document.getElementById('confirmForm').style.display = 'block';
+});
+</script>
+{% endblock %}

@@ -1,0 +1,241 @@
+{% extends 'base/users.html' %}
+
+{% block title %}Profile | RentEase{% endblock %}
+
+{% block extra_head %}
+<style>
+  .container {
+    max-width: calc(100vw - 2rem) !important;
+    margin: 0 1rem !important;
+    padding: 1rem 0 5rem 0 !important;
+  }
+  .profile-pic-preview {
+    width: 120px;
+    height: 120px;
+    object-fit: cover;
+    border-radius: 50%;
+    border: 2px solid #ddd;
+    margin-bottom: 1rem;
+  }
+  .verification-step {
+    background: #e3f6fc;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    max-width: 700px;
+  }
+  .id-preview {
+    width: 100px;
+    height: 70px;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 1px solid #bbb;
+    margin-right: 10px;
+    margin-bottom: 10px;
+  }
+  .selfie-preview {
+    width: 100px;
+    height: 100px;
+    object-fit: cover;
+    border-radius: 50%;
+    border: 2px solid #bbb;
+    margin-bottom: 10px;
+  }
+  .camera-btn {
+    margin-top: 8px;
+    margin-bottom: 8px;
+  }
+  #cameraModal {
+    display: none;
+    position: fixed;
+    z-index: 1050;
+    left: 0; top: 0; width: 100vw; height: 100vh;
+    background: rgba(0,0,0,0.7);
+    align-items: center; justify-content: center;
+  }
+  #cameraModal.active { display: flex; }
+  #cameraModalContent {
+    background: #fff;
+    padding: 1rem;
+    border-radius: 12px;
+    box-shadow: 0 0 20px #000;
+    text-align: center;
+  }
+  #cameraVideo {
+    width: 320px;
+    height: 240px;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    background: #222;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<h2>Your Profile</h2>
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <form method="POST" enctype="multipart/form-data" id="verificationForm">
+      <div class="row align-items-center">
+        <div class="col-md-3 text-center">
+          <label>Profile Picture</label><br>
+          {% if user.profile_pic %}
+            <img src="{{ url_for('uploaded_file', filename=user.profile_pic) }}" alt="Profile Picture" class="profile-pic-preview mb-2">
+          {% else %}
+            <img src="{{ url_for('static', filename='img/default-profile.png') }}" alt="Profile Picture" class="profile-pic-preview mb-2">
+          {% endif %}
+          <input type="file" name="profile_pic" accept="image/*" class="form-control form-control-sm mb-2">
+        </div>
+        <div class="col-md-9">
+          <p><strong>Name:</strong> {{ user.name }}</p>
+          <p><strong>Email:</strong> {{ user.email }}</p>
+          <p><strong>Status:</strong>
+            {% if user.verified %}
+              <span class="badge bg-success">Verified</span>
+            {% elif user.verification_requested %}
+              <span class="badge bg-warning text-dark">Pending Verification</span>
+            {% else %}
+              <span class="badge bg-secondary">Not Verified</span>
+            {% endif %}
+          </p>
+        </div>
+      </div>
+      <hr>
+      <div class="verification-step">
+        <h5>Identity Verification</h5>
+        <p>
+          To verify your account, please upload <strong>1–2 valid government-issued IDs</strong> (PhilSys, UMID, Driver’s License, Passport, etc.) and a <strong>selfie while holding your ID</strong> for liveness check.
+        </p>
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            <label>Government-issued ID #1 <span class="text-danger">*</span></label>
+            <input type="file" name="id_front" accept="image/*,application/pdf" class="form-control id-upload" required>
+            <button type="button" class="btn btn-outline-primary camera-btn" onclick="openCamera('id_front')">
+              Use Camera
+            </button>
+            <div id="id_front_preview"></div>
+            {% for doc in user_docs %}
+              {% if doc.doc_type == 'id_front' %}
+                <img src="{{ url_for('uploaded_file', filename=doc.file_path) }}" class="id-preview" alt="ID #1">
+                <a href="{{ url_for('uploaded_file', filename=doc.file_path) }}" target="_blank">View</a>
+              {% endif %}
+            {% endfor %}
+          </div>
+          <div class="col-md-6 mb-3">
+            <label>Government-issued ID #2 <small>(optional)</small></label>
+            <input type="file" name="id_back" accept="image/*,application/pdf" class="form-control id-upload">
+            <button type="button" class="btn btn-outline-primary camera-btn" onclick="openCamera('id_back')">
+              Use Camera
+            </button>
+            <div id="id_back_preview"></div>
+            {% for doc in user_docs %}
+              {% if doc.doc_type == 'id_back' %}
+                <img src="{{ url_for('uploaded_file', filename=doc.file_path) }}" class="id-preview" alt="ID #2">
+                <a href="{{ url_for('uploaded_file', filename=doc.file_path) }}" target="_blank">View</a>
+              {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+        <div class="mb-3">
+          <label>Selfie while holding your ID <span class="text-danger">*</span></label>
+          <input type="file" name="selfie" accept="image/*" class="form-control selfie-upload" required>
+          <button type="button" class="btn btn-outline-primary camera-btn" onclick="openCamera('selfie')">
+            Use Camera
+          </button>
+          <div id="selfie_preview"></div>
+          {% for doc in user_docs %}
+            {% if doc.doc_type == 'selfie' %}
+              <img src="{{ url_for('uploaded_file', filename=doc.file_path) }}" class="selfie-preview" alt="Selfie">
+              <a href="{{ url_for('uploaded_file', filename=doc.file_path) }}" target="_blank">View</a>
+            {% endif %}
+          {% endfor %}
+        </div>
+        <small class="text-danger" id="verificationError" style="display:none;">Please upload at least 1 valid ID and a selfie holding your ID.</small>
+      </div>
+      <button type="submit" class="btn btn-primary mt-2">Update Profile & Upload Documents</button>
+    </form>
+    {% if not user.verified and not user.verification_requested %}
+      <form method="POST" action="{{ url_for('request_verification') }}">
+        <button type="submit" class="btn btn-info mt-3">Verify My Account</button>
+      </form>
+    {% endif %}
+    <a href="{{ url_for('logout') }}" class="btn btn-sm btn-danger mt-3">Logout</a>
+  </div>
+</div>
+
+<!-- Camera Modal -->
+<div id="cameraModal">
+  <div id="cameraModalContent">
+    <video id="cameraVideo" autoplay></video>
+    <br>
+    <button type="button" class="btn btn-success" onclick="capturePhoto()">Capture</button>
+    <button type="button" class="btn btn-secondary" onclick="closeCamera()">Cancel</button>
+    <canvas id="cameraCanvas" style="display:none;"></canvas>
+  </div>
+</div>
+
+<script>
+let currentField = null;
+let stream = null;
+
+function openCamera(field) {
+  currentField = field;
+  document.getElementById('cameraModal').classList.add('active');
+  navigator.mediaDevices.getUserMedia({ video: true })
+    .then(function(s) {
+      stream = s;
+      document.getElementById('cameraVideo').srcObject = stream;
+    })
+    .catch(function(err) {
+      alert('Unable to access camera: ' + err);
+      closeCamera();
+    });
+}
+
+function closeCamera() {
+  document.getElementById('cameraModal').classList.remove('active');
+  if (stream) {
+    stream.getTracks().forEach(track => track.stop());
+    stream = null;
+  }
+}
+
+function capturePhoto() {
+  const video = document.getElementById('cameraVideo');
+  const canvas = document.getElementById('cameraCanvas');
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+  canvas.toBlob(function(blob) {
+    // Create a preview
+    const url = URL.createObjectURL(blob);
+    let preview = document.getElementById(currentField + '_preview');
+    preview.innerHTML = '';
+    let img = document.createElement('img');
+    img.src = url;
+    img.className = currentField === 'selfie' ? 'selfie-preview' : 'id-preview';
+    preview.appendChild(img);
+
+    // Set the blob as the file input value (simulate upload)
+    let fileInput = document.querySelector('input[name="' + currentField + '"]');
+    let dt = new DataTransfer();
+    let file = new File([blob], currentField + ".jpg", { type: "image/jpeg" });
+    dt.items.add(file);
+    fileInput.files = dt.files;
+  }, 'image/jpeg');
+  closeCamera();
+}
+
+document.getElementById('verificationForm').onsubmit = function(e) {
+  var idFront = document.querySelector('input[name="id_front"]');
+  var selfie = document.querySelector('input[name="selfie"]');
+  if ((!idFront.value && !document.querySelector('img[alt="ID #1"]')) || (!selfie.value && !document.querySelector('img[alt="Selfie"]'))) {
+    document.getElementById('verificationError').style.display = 'block';
+    e.preventDefault();
+    return false;
+  } else {
+    document.getElementById('verificationError').style.display = 'none';
+  }
+};
+</script>
+{% endblock %}

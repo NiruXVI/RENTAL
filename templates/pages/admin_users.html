@@ -1,0 +1,35 @@
+{% extends 'base/admin.html' %}
+
+{% block title %}Admin Users | RentEase{% endblock %}
+
+{% block content %}
+<h2>Manage Users</h2>
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Role</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for user in users %}
+        <tr>
+            <td>{{ user.id }}</td>
+            <td>{{ user.name }}</td>
+            <td>{{ user.email }}</td>
+            <td>{{ user.role }}</td>
+            <td>
+                <a href="#" class="btn btn-primary btn-sm">Edit</a>
+                <a href="#" class="btn btn-danger btn-sm">Delete</a>
+                <a href="#" class="btn btn-warning btn-sm">Manage Roles</a>
+            </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5">No users found.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

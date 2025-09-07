@@ -1,0 +1,37 @@
+{% extends 'base/admin.html' %}
+
+{% block title %}Verify Listings | RentEase Admin{% endblock %}
+
+{% block content %}
+<h2>Verify Property Listings</h2>
+<table class="table table-bordered">
+  <thead>
+    <tr>
+      <th>Title</th>
+      <th>Owner</th>
+      <th>Address</th>
+      <th>Type</th>
+      <th>Action</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for prop in pending_listings %}
+    <tr>
+      <td>{{ prop.title }}</td>
+      <td>{{ prop.owner.name }}<br><small>{{ prop.owner.email }}</small></td>
+      <td>{{ prop.address }}</td>
+      <td>{{ prop.type }}</td>
+      <td>
+        <form method="POST" style="display:inline;">
+          <input type="hidden" name="property_id" value="{{ prop.id }}">
+          <button name="action" value="approve" class="btn btn-success btn-sm">Approve</button>
+          <button name="action" value="reject" class="btn btn-danger btn-sm">Reject</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5">No listings pending verification.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

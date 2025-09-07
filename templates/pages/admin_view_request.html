@@ -1,0 +1,53 @@
+{% extends 'base/admin.html' %}
+
+{% block title %}Rental Request Details | RentEase{% endblock %}
+
+{% block content %}
+<h2>Rental Request Details</h2>
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <table class="table table-bordered">
+      <tr>
+        <th>ID</th>
+        <td>{{ request.id }}</td>
+      </tr>
+      <tr>
+        <th>User</th>
+        <td>{{ request.user_obj.name }} ({{ request.user_obj.email }})</td>
+      </tr>
+      <tr>
+        <th>Property</th>
+        <td>
+          {{ request.property_obj.title }}<br>
+          <small>{{ request.property_obj.address }}</small>
+        </td>
+      </tr>
+      <tr>
+        <th>Status</th>
+        <td>
+          <span class="badge 
+            {% if request.status == 'Pending' %}bg-warning text-dark
+            {% elif request.status == 'Approved' %}bg-success
+            {% elif request.status == 'Rejected' %}bg-danger
+            {% else %}bg-secondary{% endif %}">
+            {{ request.status }}
+          </span>
+        </td>
+      </tr>
+      <tr>
+        <th>Date</th>
+        <td>{{ request.date.strftime('%Y-%m-%d %H:%M') }}</td>
+      </tr>
+    </table>
+    <div class="mt-3">
+      <form method="POST" action="{{ url_for('admin_approve_request', request_id=request.id) }}" style="display:inline;" onsubmit="return confirm('Approve this request?');">
+        <button type="submit" class="btn btn-success">Approve</button>
+      </form>
+      <form method="POST" action="{{ url_for('admin_reject_request', request_id=request.id) }}" style="display:inline;" onsubmit="return confirm('Reject this request?');">
+        <button type="submit" class="btn btn-danger">Reject</button>
+      </form>
+      <a href="{{ url_for('admin_requests') }}" class="btn btn-secondary">Back to Requests</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

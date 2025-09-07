@@ -1,0 +1,108 @@
+{% extends 'base/users.html' %}
+
+{% block title %}Landlord Dashboard | RentEase{% endblock %}
+
+{% block extra_head %}
+<style>
+  .container {
+    max-width: calc(100vw - 2rem) !important;
+    margin: 0 1rem !important;
+    padding: 1rem 0 5rem 0 !important;
+  }
+  .doc-list {
+    font-size: 0.95em;
+    margin-bottom: 0.5rem;
+  }
+  .doc-list a {
+    margin-right: 0.5em;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<h2>Landlord Dashboard</h2>
+<p>Manage your listings here.</p>
+<div class="mb-3">
+  {% if user.verified %}
+    <a href="{{ url_for('add_listing') }}" class="btn btn-primary">+ Add New Listing</a>
+  {% else %}
+    <div class="alert alert-warning">You must be verified to add listings.</div>
+  {% endif %}
+</div>
+<div class="row">
+  {% for property in properties %}
+  <div class="col-md-6 col-lg-4 mb-3">
+    <div class="card shadow-sm">
+      {% if property.images and property.images|length > 0 %}
+        <img src="{{ url_for('uploaded_file', filename=property.images[0].image_file) }}" class="card-img-top" alt="Property">
+      {% else %}
+        <img src="/static/images/sample1.jpg" class="card-img-top" alt="Property">
+      {% endif %}
+      <div class="card-body">
+        <h6>{{ property.title }}</h6>
+        <p>{{ property.price }}/month • {{ property.address }}</p>
+        <p>Status:
+          {% if property.verified %}
+            <span class="badge bg-success">Verified</span>
+          {% else %}
+            <span class="badge bg-warning text-dark">Pending Verification</span>
+          {% endif %}
+        </p>
+        <div class="doc-list">
+          <strong>Uploaded Documents:</strong>
+          {% if property.property_docs %}
+            {% for doc in property.property_docs %}
+              <a href="{{ url_for('uploaded_file', filename=doc.file_path) }}" target="_blank">{{ doc.doc_type|replace('_', ' ')|capitalize }}</a>
+            {% endfor %}
+          {% else %}
+            <span class="text-muted">No documents uploaded.</span>
+          {% endif %}
+        </div>
+        {# Rental Requests Section #}
+        {% if property.rental_requests %}
+        <div class="mt-2">
+          <strong>Rental Requests:</strong>
+          <ul class="list-group mb-2">
+            {% for req in property.rental_requests %}
+              <li class="list-group-item d-flex justify-content-between align-items-center">
+                <span>
+                  <b>{{ req.tenant_name }}</b> ({{ req.tenant_email }})<br>
+                  <small>Status: 
+                    {% if req.status == 'pending' %}
+                      <span class="badge bg-warning text-dark">Pending</span>
+                    {% elif req.status == 'accepted' %}
+                      <span class="badge bg-success">Accepted</span>
+                    {% elif req.status == 'rejected' %}
+                      <span class="badge bg-danger">Rejected</span>
+                    {% endif %}
+                  </small>
+                </span>
+                {% if req.status == 'pending' %}
+                <form method="POST" action="{{ url_for('landlord_request_action', request_id=req.id, action='accept') }}" style="display:inline;">
+                  <button type="submit" class="btn btn-sm btn-success">Accept</button>
+                </form>
+                <form method="POST" action="{{ url_for('landlord_request_action', request_id=req.id, action='reject') }}" style="display:inline;">
+                  <button type="submit" class="btn btn-sm btn-danger">Reject</button>
+                </form>
+                {% endif %}
+              </li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+        {% if user.verified %}
+        <a href="{{ url_for('landlord_edit', property_id=property.id) }}" class="btn btn-sm btn-warning">Edit</a>
+        <form method="POST" action="{{ url_for('delete_listing', property_id=property.id) }}" style="display:inline;">
+          <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Delete this listing?');">Delete</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="col-12">
+    <p>No listings found.</p>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

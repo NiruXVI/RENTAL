@@ -1,0 +1,59 @@
+{% extends 'base/admin.html' %}
+
+{% block title %}Admin Dashboard | RentEase{% endblock %}
+
+{% block content %}
+<h2>Admin Dashboard</h2>
+<div class="mb-4">
+  <a href="{{ url_for('admin_verify_users') }}" class="btn btn-info me-2">Verify Users</a>
+  <a href="{{ url_for('admin_verify_listings') }}" class="btn btn-warning">Verify Listings</a>
+</div>
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-bg-primary mb-3">
+            <div class="card-body">
+                <h5 class="card-title">Pending Listings</h5>
+                <p class="card-text display-6">{{ pending_listings_count }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-bg-success mb-3">
+            <div class="card-body">
+                <h5 class="card-title">Total Users</h5>
+                <p class="card-text display-6">{{ users_count }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-bg-warning mb-3">
+            <div class="card-body">
+                <h5 class="card-title">Rental Requests</h5>
+                <p class="card-text display-6">{{ rental_requests_count }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-bg-danger mb-3">
+            <div class="card-body">
+                <h5 class="card-title">Flagged Listings</h5>
+                <p class="card-text display-6">{{ flagged_listings_count }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<h4>Listing Verification Process</h4>
+<div class="mb-4">
+    <img src="{{ url_for('static', filename='images/listing_verification_flow.png') }}" alt="Listing Verification Flow" class="img-fluid" style="max-width: 500px;">
+</div>
+
+<h4>Recent Admin Activity</h4>
+<ul class="list-group">
+    {% for activity in recent_activity %}
+        <li class="list-group-item">{{ activity }}</li>
+    {% else %}
+        <li class="list-group-item">No recent activity.</li>
+    {% endfor %}
+</ul>
+{% endblock %}

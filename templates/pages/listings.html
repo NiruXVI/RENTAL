@@ -1,0 +1,770 @@
+{% extends 'base/users.html' %}
+
+{% block title %}Maps & Listings | RentEase{% endblock %}
+
+{% block extra_head %}
+<style>
+  .full-width-container {
+    max-width: calc(100vw - 2rem);
+    margin: 0 1rem;
+    padding: 1rem 0;
+    height: 100%;
+    box-sizing: border-box;
+  }
+  .map-listings-container {
+    display: flex;
+    gap: 1.5rem;
+    align-items: flex-start;
+    height: 100%;
+  }
+  .map-section {
+    flex: 3;
+    min-width: 600px;
+  }
+  .listings-section {
+    flex: 1.5;
+    min-width: 350px;
+    height: 100%;
+    overflow-y: auto;
+  }
+  #map { 
+    height: calc(90vh - 200px);
+    width: 100%;
+    margin-bottom: 0.5rem; 
+    border: 1px solid #ddd;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  }
+  .map-buttons .btn { margin-right: .5rem; margin-bottom: .5rem; }
+  .listing-card { margin-bottom: 1.5rem; }
+  .container {
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    height: calc(100vh - 70px);
+    overflow: hidden;
+  }
+  .layer-checkbox-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 20px;
+    margin-bottom: 10px;
+  }
+  .layer-checkbox-group label {
+    font-weight: 400;
+    font-size: 0.98rem;
+    cursor: pointer;
+    user-select: none;
+  }
+  .layer-checkbox-columns {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 30px;
+  }
+  .layer-checkbox-col {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 160px;
+  }
+  fieldset {
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 10px 15px 10px 15px;
+    margin-bottom: 12px;
+    background: #f9f9f9;
+  }
+  legend {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 0.5em;
+    width: auto;
+    padding: 0 6px;
+  }
+  .dropdown-checkbox-menu {
+    max-height: 320px;
+    overflow-y: auto;
+    padding: 10px 15px;
+    min-width: 180px;
+  }
+  .dropdown-checkbox-menu label {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin-bottom: 6px;
+    font-weight: 400;
+    font-size: 0.97rem;
+    cursor: pointer;
+  }
+  .dropdown-checkbox-menu strong {
+    font-size: 1rem;
+    margin-top: 8px;
+    margin-bottom: 3px;
+    display: block;
+  }
+  .dropdown-toggle[aria-expanded="true"]::after {
+    transform: rotate(-180deg);
+  }
+  .property-img {
+    width: 100%;
+    height: 180px;
+    object-fit: cover;
+    border-radius: 6px 6px 0 0;
+    background: #eee;
+    display: block;
+  }
+  .dropdown-filter-menu {
+    min-width: 160px;
+    padding: 8px 12px;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    position: absolute;
+    z-index: 100;
+    display: none;
+  }
+  .dropdown-filter-menu label {
+    display: block;
+    margin-bottom: 6px;
+    cursor: pointer;
+    font-size: 0.97rem;
+  }
+  .filter-group {
+    position: relative;
+    display: inline-block;
+  }
+  .landlord-info {
+    font-size: 0.97rem;
+    margin-top: 0.5em;
+    margin-bottom: 0.5em;
+    color: #444;
+  }
+  .message-btn {
+    margin-left: 8px;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="full-width-container">
+<div class="map-listings-container">
+  <div class="map-section">
+    <h2>Butuan City Maps</h2>
+    <p>Select map overlays to view:</p>
+    <div class="d-flex flex-wrap gap-3 mb-3">
+      <!-- Flood Zone Dropdown -->
+      <div class="dropdown">
+        <button class="btn btn-outline-danger dropdown-toggle" type="button" id="floodDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+          Flood Zone
+        </button>
+        <div class="dropdown-menu dropdown-checkbox-menu" aria-labelledby="floodDropdown">
+          <label><input type="checkbox" class="hazard-layer" value="low"> Low</label>
+          <label><input type="checkbox" class="hazard-layer" value="moderate"> Moderate</label>
+          <label><input type="checkbox" class="hazard-layer" value="high"> High</label>
+          <label><input type="checkbox" class="hazard-layer" value="veryhigh"> Very High</label>
+        </div>
+      </div>
+      <!-- SLR Dropdown -->
+      <div class="dropdown">
+        <button class="btn btn-outline-primary dropdown-toggle" type="button" id="slrDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+          Sea Level Rise (SLR)
+        </button>
+        <div class="dropdown-menu dropdown-checkbox-menu" aria-labelledby="slrDropdown">
+          <label><input type="checkbox" class="hazard-layer" value="lowslr"> Low</label>
+          <label><input type="checkbox" class="hazard-layer" value="moderateslr"> Moderate</label>
+          <label><input type="checkbox" class="hazard-layer" value="highslr"> High</label>
+          <label><input type="checkbox" class="hazard-layer" value="veryhighslr"> Very High</label>
+        </div>
+      </div>
+      <!-- Storm Surge Dropdown -->
+      <div class="dropdown">
+        <button class="btn btn-outline-info dropdown-toggle" type="button" id="stormDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+          Storm Surge
+        </button>
+        <div class="dropdown-menu dropdown-checkbox-menu" aria-labelledby="stormDropdown">
+          <label><input type="checkbox" class="hazard-layer" value="lowss"> Low</label>
+          <label><input type="checkbox" class="hazard-layer" value="moderatess"> Moderate</label>
+          <label><input type="checkbox" class="hazard-layer" value="highss"> High</label>
+          <label><input type="checkbox" class="hazard-layer" value="veryhighss"> Very High</label>
+        </div>
+      </div>
+      <!-- Liquefaction Dropdown -->
+      <div class="dropdown">
+        <button class="btn btn-outline-warning dropdown-toggle" type="button" id="liqDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+          Liquefaction
+        </button>
+        <div class="dropdown-menu dropdown-checkbox-menu" aria-labelledby="liqDropdown">
+          <label><input type="checkbox" class="hazard-layer" value="lowliq"> Low</label>
+          <label><input type="checkbox" class="hazard-layer" value="moderateliq"> Moderate</label>
+          <label><input type="checkbox" class="hazard-layer" value="highliq"> High</label>
+        </div>
+      </div>
+      <!-- Subdivisions Dropdown -->
+      <div class="dropdown">
+        <button class="btn btn-outline-success dropdown-toggle" type="button" id="subdivisionDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+          Subdivisions
+        </button>
+        <div class="dropdown-menu dropdown-checkbox-menu" aria-labelledby="subdivisionDropdown">
+          <label><input type="checkbox" class="subdivision-layer" value="subdivisions"> All Subdivisions</label>
+          <label><input type="checkbox" class="subdivision-layer" value="houselumina">Lumina</label>
+          <label><input type="checkbox" class="subdivision-layer" value="housecamella">Camella</label>
+          <label><input type="checkbox" class="subdivision-layer" value="housefilinvest">FilInvest</label>
+          <label><input type="checkbox" class="subdivision-layer" value="housevcdu">VCDU</label>
+          <label><input type="checkbox" class="subdivision-layer" value="househappyhomes">Happy Homes</label>
+          <label><input type="checkbox" class="subdivision-layer" value="housesherwood">Sherwood</label>
+          <label><input type="checkbox" class="subdivision-layer" value="houseidealhomes">Ideal Homes</label>
+          <label><input type="checkbox" class="subdivision-layer" value="housefairmont">Fairmont</label>
+          <label><input type="checkbox" class="subdivision-layer" value="housecamella1">Camella 1</label>
+          <label><input type="checkbox" class="subdivision-layer" value="housemiraville">Miraville</label>
+          <label><input type="checkbox" class="subdivision-layer" value="houserosewood1">Rosewood</label>
+          <label><input type="checkbox" class="subdivision-layer" value="houseprincesh">Princess</label>
+          <label><input type="checkbox" class="subdivision-layer" value="househorizon">Horizon</label>
+          <label><input type="checkbox" class="subdivision-layer" value="housejosephine">Josephine</label>
+        </div>
+      </div>
+      <!-- Base Layers Dropdown -->
+      <div class="dropdown">
+        <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="baseLayerDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+          Base Layers
+        </button>
+        <div class="dropdown-menu dropdown-checkbox-menu" aria-labelledby="baseLayerDropdown">
+          <label><input type="checkbox" class="base-layer" value="butuan_polygons">Barangay Boundaries</label>
+          <label><input type="checkbox" class="base-layer" value="butuan_lines">Butuan Borders</label>
+          <label><input type="checkbox" class="base-layer" value="basemap">Base Map</label>
+        </div>
+      </div>
+    </div>
+    <div id="map"></div>
+    <div style="margin-top:1rem;">
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 15px; margin-bottom: 1rem;">
+        <strong style="margin-right: 10px;">LEGEND:</strong>
+        <div style="display: flex; align-items: center; gap: 5px;">
+          <span style="border:2px solid #000; width:15px; height:15px; display:inline-block;"></span>
+          <span>Butuan Boundary</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 5px;">
+          <span style="border:2px dashed #000; width:15px; height:15px; display:inline-block;"></span>
+          <span>Barangay Boundaries</span>
+        </div>
+        <span class="badge bg-primary">Base Map</span>
+        <span class="badge bg-info text-dark">Storm Surge</span>
+        <span class="badge bg-danger">Sea Level Rise</span>
+        <span class="badge bg-warning text-dark">Liquefaction</span>
+      </div>
+    </div>
+  </div>
+  <div class="listings-section">
+    <div class="bg-white rounded shadow p-3" style="min-width:320px;">
+      <div class="d-flex flex-wrap align-items-center gap-2 mb-3" style="border-bottom:1px solid #eee; padding-bottom:0.5rem;">
+        <div class="filter-group">
+          <!-- Removed For Rent filter -->
+        </div>
+        <div class="filter-group">
+          <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="priceFilterBtn">Price</button>
+          <div class="dropdown-filter-menu" id="priceFilterMenu">
+            <label><input type="radio" name="priceFilter" value="all" checked> All</label>
+            <label><input type="radio" name="priceFilter" value="low"> Low (&lt; ₱5,000)</label>
+            <label><input type="radio" name="priceFilter" value="medium"> Medium (₱5,000 - ₱15,000)</label>
+            <label><input type="radio" name="priceFilter" value="high"> High (&gt; ₱15,000)</label>
+          </div>
+        </div>
+        <div class="filter-group">
+          <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="typeFilterBtn">Home Type</button>
+          <div class="dropdown-filter-menu" id="typeFilterMenu">
+            <label><input type="radio" name="typeFilter" value="all" checked> All</label>
+            <label><input type="radio" name="typeFilter" value="Apartment"> Apartment</label>
+            <label><input type="radio" name="typeFilter" value="House"> House</label>
+            <label><input type="radio" name="typeFilter" value="Condo"> Condo</label>
+            <label><input type="radio" name="typeFilter" value="Townhouse"> Townhouse</label>
+          </div>
+        </div>
+        <button class="btn btn-sm btn-success ms-auto">Save Searches</button>
+      </div>
+      <h2 class="mb-3">Rental Listings</h2>
+      <div class="mb-3">
+        <div class="input-group">
+          <input type="text" id="barangaySearch" placeholder="Search barangay (e.g., Libertad)..." class="form-control">
+          <button class="btn btn-primary" id="searchBtn">
+            <i class="fas fa-search"></i> Search
+          </button>
+        </div>
+        <div id="searchResult" class="mt-2"></div>
+      </div>
+      <div class="row" id="property-listings">
+        {% for property in listings %}
+        <div class="col-12 listing-card property-card"
+          data-address="{{ property.address|lower }}"
+          data-price="{{ property.price|replace(',', '')|replace('₱', '') }}"
+          data-type="{{ property.type }}">
+          <div class="card shadow-sm">
+            <img 
+              src="{% if property.images and property.images[0] %}
+                {{ url_for('static', filename='uploads/' ~ property.images[0].image_file) }}
+              {% else %}
+                {{ url_for('static', filename='images/sample1.jpg') }}
+              {% endif %}" 
+              alt="Property Image" 
+              class="property-img"
+              onerror="this.onerror=null;this.src='{{ url_for('static', filename='images/sample1.jpg') }}';">
+            <div class="card-body">
+              <h6>{{ property.title }}</h6>
+              <p>{{ property.price }}/mo • {{ property.address }}</p>
+              <span class="badge {% if property.status == 'For Rent' or property.status == 'Available' %}bg-success{% else %}bg-secondary{% endif %}">
+                {{ property.status }}
+              </span>
+              <div class="landlord-info">
+                <strong>Landlord:</strong>
+                {% set landlord = property.owner %}
+                {{ landlord.name }}
+                <form method="GET" action="{{ url_for('messages') }}" style="display:inline;">
+                  <input type="hidden" name="user" value="{{ landlord.id }}">
+                  <button type="submit" class="btn btn-sm btn-outline-primary message-btn">Message Landlord</button>
+                </form>
+              </div>
+              <a href="{{ url_for('property_reviews', property_id=property.id) }}" class="btn btn-sm btn-outline-secondary">View/Add Reviews</a>
+              <button class="btn btn-sm btn-primary view-on-map-btn"
+                data-lat="{{ property.location.latitude if property.location else '' }}"
+                data-lng="{{ property.location.longitude if property.location else '' }}"
+                data-title="{{ property.title|replace('\"', '\\\"')|replace('\n', ' ') }}"
+                data-price="{{ property.price|replace('\"', '\\\"')|replace('\n', ' ') }}"
+                data-address="{{ property.address|replace('\"', '\\\"')|replace('\n', ' ') }}">
+                View on Map
+              </button>
+              {% if property.status == 'For Rent' or property.status == 'Available' %}
+                <form method="POST" action="{{ url_for('rent_property', property_id=property.id) }}" style="display:inline;">
+                  <button type="submit" class="btn btn-sm btn-success">Rent this Property</button>
+                </form>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        {% else %}
+        <div class="col-12">
+          <p>No listings found.</p>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/ol@latest/dist/ol.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Initialize OpenLayers map
+  const map = new ol.Map({
+    target: 'map',
+    layers: [
+      new ol.layer.Tile({
+        source: new ol.source.OSM({
+          attributions: ['']
+        })
+      })
+    ],
+    view: new ol.View({
+      center: ol.proj.fromLonLat([125.5406, 8.9475]),
+      zoom: 13
+    })
+  });
+
+  // --- Filtering logic ---
+function applyAllFilters() {
+  const priceValue = document.querySelector('input[name="priceFilter"]:checked').value;
+  const typeValue = document.querySelector('input[name="typeFilter"]:checked').value;
+  const searchTerm = document.getElementById('barangaySearch').value.trim().toLowerCase();
+  const cards = document.querySelectorAll('.property-card');
+  let found = 0;
+  cards.forEach(card => {
+    let show = true;
+    // Price filter
+    let price = parseInt(card.getAttribute('data-price')) || 0;
+    if (priceValue === 'low' && price >= 5000) show = false;
+    if (priceValue === 'medium' && (price < 5000 || price > 15000)) show = false;
+    if (priceValue === 'high' && price <= 15000) show = false;
+    // Type filter
+    let type = card.getAttribute('data-type');
+    if (typeValue !== 'all' && type !== typeValue) show = false;
+    // Search filter
+    const address = card.getAttribute('data-address');
+    if (searchTerm && (!address || !address.includes(searchTerm))) show = false;
+    card.style.display = show ? '' : 'none';
+    if (show) found++;
+  });
+
+  // Polygon zoom logic (same as before)
+  highlightLayer.getSource().clear();
+  let barangayName = searchTerm.charAt(0).toUpperCase() + searchTerm.slice(1);
+  if (searchTerm && polygonLayer) {
+    const features = polygonLayer.getSource().getFeatures();
+    const matchingFeatures = features.filter(feature => {
+      const properties = feature.getProperties();
+      return Object.values(properties).some(value =>
+        String(value).toLowerCase().includes(searchTerm)
+      );
+    });
+    if (matchingFeatures.length > 0) {
+      highlightLayer.getSource().addFeatures(matchingFeatures);
+      const extent = matchingFeatures[0].getGeometry().getExtent();
+      map.getView().fit(extent, { padding: [50, 50, 50, 50], duration: 1000 });
+      const props = matchingFeatures[0].getProperties();
+      barangayName =
+        props.name ||
+        props.NAME ||
+        props.barangay ||
+        props.BARANGAY ||
+        Object.values(props).find(v => typeof v === 'string' && v.trim().length > 0) ||
+        barangayName;
+    }
+  }
+  // Show result
+  const resultDiv = document.getElementById('searchResult');
+  if (searchTerm) {
+    if (found > 0) {
+      resultDiv.innerHTML = `<div class="alert alert-success">Found properties in <strong>${barangayName}</strong> (${found} result${found > 1 ? 's' : ''})</div>`;
+    } else {
+      resultDiv.innerHTML = `<div class="alert alert-warning">No property found for "${barangayName}"</div>`;
+    }
+  } else {
+    resultDiv.innerHTML = '';
+  }
+}
+
+// Attach to all filter/search events:
+document.querySelectorAll('input[name="priceFilter"]').forEach(el => {
+  el.addEventListener('change', applyAllFilters);
+});
+document.querySelectorAll('input[name="typeFilter"]').forEach(el => {
+  el.addEventListener('change', applyAllFilters);
+});
+document.getElementById('searchBtn').addEventListener('click', function() {
+  applyAllFilters();
+});
+document.getElementById('barangaySearch').addEventListener('keypress', function(e) {
+  if (e.key === 'Enter') {
+    applyAllFilters();
+  }
+});
+
+  // Define layer styles
+  const layerStyles = {
+    butuan_lines: new ol.style.Style({
+      stroke: new ol.style.Stroke({ color: 'black', width: 2, lineDash: [5, 5] })
+    }),
+    butuan_polygons: new ol.style.Style({
+      fill: new ol.style.Fill({color: 'rgba(0, 100, 200, 0.1)'}),
+      stroke: new ol.style.Stroke({ color: 'blue', width: 1 })
+    }),
+    highlight: new ol.style.Style({
+      fill: new ol.style.Fill({color: 'rgba(255, 255, 0, 0.3)'}),
+      stroke: new ol.style.Stroke({ color: 'red', width: 3 })
+    }),
+    basemap: new ol.style.Style({
+      fill: new ol.style.Fill({color: 'rgba(0, 0, 0, 0)'}),
+      stroke: new ol.style.Stroke({ color: 'black', width: 1, lineDash: [5, 5] })
+    }),
+    base: new ol.style.Style({
+      image: new ol.style.Circle({
+        radius: 6,
+        fill: new ol.style.Fill({color: 'blue'}),
+        stroke: new ol.style.Stroke({color: 'white', width: 2})
+      })
+    }),
+    storm: new ol.style.Style({
+      fill: new ol.style.Fill({color: 'rgba(0, 0, 255, 0.3)'}),
+      stroke: new ol.style.Stroke({color: 'blue', width: 2})
+    }),
+    sea: new ol.style.Style({
+      fill: new ol.style.Fill({color: 'rgba(255, 0, 0, 0.3)'}),
+      stroke: new ol.style.Stroke({color: 'red', width: 2})
+    }),
+    low: new ol.style.Style({
+      fill: new ol.style.Fill({color: 'rgba(144, 238, 144, 0.8)'}),
+      stroke: new ol.style.Stroke({color: '#32CD32', width: 3})
+    }),
+    moderate: new ol.style.Style({
+      fill: new ol.style.Fill({color: 'rgba(255, 215, 0, 0.8)'}),
+      stroke: new ol.style.Stroke({color: '#FFD700', width: 3})
+    }),
+    high: new ol.style.Style({
+      fill: new ol.style.Fill({color: 'rgba(255, 165, 0, 0.8)'}),
+      stroke: new ol.style.Stroke({color: '#FFA500', width: 3})
+    }),
+    veryhigh: new ol.style.Style({
+      fill: new ol.style.Fill({color: 'rgba(255, 69, 0, 0.8)'}),
+      stroke: new ol.style.Stroke({color: '#FF4500', width: 3})
+    }),
+    lowslr: new ol.style.Style({
+      fill: new ol.style.Fill({color: 'rgba(173, 216, 230, 0.8)'}),
+      stroke: new ol.style.Stroke({color: '#87CEEB', width: 3})
+    }),
+    moderateslr: new ol.style.Style({
+      fill: new ol.style.Fill({color: 'rgba(30, 144, 255, 0.8)'}),
+      stroke: new ol.style.Stroke({color: '#1E90FF', width: 3})
+    }),
+    highslr: new ol.style.Style({
+      fill: new ol.style.Fill({color: 'rgba(0, 0, 255, 0.8)'}),
+      stroke: new ol.style.Stroke({color: '#0000FF', width: 3})
+    }),
+    veryhighslr: new ol.style.Style({
+      fill: new ol.style.Fill({color: 'rgba(0, 0, 139, 0.8)'}),
+      stroke: new ol.style.Stroke({color: '#00008B', width: 3})
+    }),
+    lowss: new ol.style.Style({
+      fill: new ol.style.Fill({color: 'rgba(221, 160, 221, 0.8)'}),
+      stroke: new ol.style.Stroke({color: '#DDA0DD', width: 3})
+    }),
+    moderatess: new ol.style.Style({
+      fill: new ol.style.Fill({color: 'rgba(147, 112, 219, 0.8)'}),
+      stroke: new ol.style.Stroke({color: '#9370DB', width: 3})
+    }),
+    highss: new ol.style.Style({
+      fill: new ol.style.Fill({color: 'rgba(138, 43, 226, 0.8)'}),
+      stroke: new ol.style.Stroke({color: '#8A2BE2', width: 3})
+    }),
+    veryhighss: new ol.style.Style({
+      fill: new ol.style.Fill({color: 'rgba(75, 0, 130, 0.8)'}),
+      stroke: new ol.style.Stroke({color: '#4B0082', width: 3})
+    }),
+    lowliq: new ol.style.Style({
+      fill: new ol.style.Fill({color: 'rgba(222, 184, 135, 0.8)'}),
+      stroke: new ol.style.Stroke({color: '#DEB887', width: 3})
+    }),
+    moderateliq: new ol.style.Style({
+      fill: new ol.style.Fill({color: 'rgba(205, 133, 63, 0.8)'}),
+      stroke: new ol.style.Stroke({color: '#CD853F', width: 3})
+    }),
+    highliq: new ol.style.Style({
+      fill: new ol.style.Fill({color: 'rgba(160, 82, 45, 0.8)'}),
+      stroke: new ol.style.Stroke({color: '#A0522D', width: 3})
+    }),
+    liq: new ol.style.Style({
+      fill: new ol.style.Fill({color: 'rgba(255, 165, 0, 0.3)'}),
+      stroke: new ol.style.Stroke({color: 'orange', width: 2})
+    }),
+    subdivisions: new ol.style.Style({
+      fill: new ol.style.Fill({color: 'rgba(0, 255, 255, 0.3)'}),
+      stroke: new ol.style.Stroke({color: 'cyan', width: 2})
+    }),
+    selectedPoint: new ol.style.Style({
+      image: new ol.style.Icon({
+        src: '/static/images/marker.jpg',
+        anchor: [0.5, 1],
+        scale: 0.75
+      })
+    }),
+    housePoint: new ol.style.Style({
+      image: new ol.style.Circle({
+        radius: 7,
+        fill: new ol.style.Fill({color: '#007bff'}),
+        stroke: new ol.style.Stroke({color: '#fff', width: 2})
+      })
+    })
+  };
+
+  // Create vector layers for all overlays
+  const layerNames = [
+    'butuan_polygons', 'butuan_lines', 'basemap',
+    'low', 'moderate', 'high', 'veryhigh',
+    'lowslr', 'moderateslr', 'highslr', 'veryhighslr',
+    'lowss', 'moderatess', 'highss', 'veryhighss',
+    'lowliq', 'moderateliq', 'highliq',
+    'subdivisions',
+    'houselumina', 'housecamella', 'housefilinvest', 'housevcdu', 
+    'househappyhomes', 'housesherwood', 'houseidealhomes', 'housefairmont',
+    'housecamella1', 'housemiraville', 'houserosewood1', 'houseprincesh',
+    'househorizon', 'housejosephine'
+  ];
+
+  const layers = {};
+  layerNames.forEach(layerName => {
+    let style = layerStyles[layerName] || layerStyles.housePoint;
+    layers[layerName] = new ol.layer.Vector({
+      source: new ol.source.Vector(),
+      style: style,
+      visible: false
+    });
+    map.addLayer(layers[layerName]);
+  });
+
+  let polygonLayer = layers['butuan_polygons'];
+
+  // Highlight layer for search
+  let highlightLayer = new ol.layer.Vector({
+    source: new ol.source.Vector(),
+    style: layerStyles.highlight
+  });
+  map.addLayer(highlightLayer);
+
+  // Load GeoJSON for each layer
+  function loadGeoJSONLayer(layerName) {
+    fetch(`/api/map-data/${layerName}`)
+      .then(response => {
+        if (!response.ok) return null;
+        return response.json();
+      })
+      .then(data => {
+        if (data && layers[layerName]) {
+          const features = new ol.format.GeoJSON().readFeatures(data, {
+            featureProjection: 'EPSG:3857'
+          });
+          layers[layerName].getSource().clear();
+          layers[layerName].getSource().addFeatures(features);
+        }
+      });
+  }
+  layerNames.forEach(loadGeoJSONLayer);
+
+  // Checkbox logic for overlays
+  function setupLayerCheckboxes(className) {
+    document.querySelectorAll('.' + className).forEach(cb => {
+      cb.addEventListener('change', function() {
+        const layer = layers[this.value];
+        if (layer) {
+          layer.setVisible(this.checked);
+        }
+      });
+    });
+  }
+  setupLayerCheckboxes('hazard-layer');
+  setupLayerCheckboxes('subdivision-layer');
+  setupLayerCheckboxes('base-layer');
+
+  // Search functionality
+window.searchBarangay = function(searchTerm) {
+  if (!searchTerm || searchTerm.trim() === '') {
+    document.getElementById('searchResult').innerHTML = '';
+    highlightLayer.getSource().clear();
+    return;
+  }
+  // Filter property cards
+  const cards = document.querySelectorAll('.property-card');
+  let found = 0;
+  searchTerm = searchTerm.trim().toLowerCase();
+  cards.forEach(card => {
+    const address = card.getAttribute('data-address');
+    if (address && address.includes(searchTerm)) {
+      card.style.display = '';
+      found++;
+    } else {
+      card.style.display = 'none';
+    }
+  });
+  // Highlight barangay polygon if exists
+  highlightLayer.getSource().clear();
+  let barangayName = searchTerm.charAt(0).toUpperCase() + searchTerm.slice(1);
+  if (polygonLayer) {
+    const features = polygonLayer.getSource().getFeatures();
+    const matchingFeatures = features.filter(feature => {
+      const properties = feature.getProperties();
+      return Object.values(properties).some(value =>
+        String(value).toLowerCase().includes(searchTerm)
+      );
+    });
+    if (matchingFeatures.length > 0) {
+      highlightLayer.getSource().addFeatures(matchingFeatures);
+      const extent = matchingFeatures[0].getGeometry().getExtent();
+      map.getView().fit(extent, { padding: [50, 50, 50, 50], duration: 1000 });
+      // Try to get a better barangay name
+      const props = matchingFeatures[0].getProperties();
+      barangayName =
+        props.name ||
+        props.NAME ||
+        props.barangay ||
+        props.BARANGAY ||
+        Object.values(props).find(v => typeof v === 'string' && v.trim().length > 0) ||
+        barangayName;
+    }
+  }
+  // Show result based on property count
+  const resultDiv = document.getElementById('searchResult');
+  if (found > 0) {
+    resultDiv.innerHTML = `<div class="alert alert-success">Found properties in <strong>${barangayName}</strong> (${found} result${found > 1 ? 's' : ''})</div>`;
+  } else {
+    resultDiv.innerHTML = `<div class="alert alert-warning">No property found for "${barangayName}"</div>`;
+  }
+};
+
+  // Property marker layer for all properties
+  const propertySource = new ol.source.Vector();
+  const propertyLayer = new ol.layer.Vector({
+    source: propertySource,
+    style: layerStyles.housePoint
+  });
+  map.addLayer(propertyLayer);
+
+  // Add features for each property from Jinja context
+  {% for property in listings %}
+    {% if property.location and property.location.longitude and property.location.latitude %}
+      propertySource.addFeature(new ol.Feature({
+        geometry: new ol.geom.Point(ol.proj.fromLonLat([
+          {{ property.location.longitude }},
+          {{ property.location.latitude }}
+        ])),
+        id: "{{ property.id }}",
+        title: "{{ property.title|replace('\"', '\\\"')|replace('\n', ' ') }}",
+        price: "{{ property.price|replace('\"', '\\\"')|replace('\n', ' ') }}",
+        address: "{{ property.address|replace('\"', '\\\"')|replace('\n', ' ') }}"
+      }));
+    {% endif %}
+  {% endfor %}
+
+  // Only show the red marker when "View on Map" is clicked
+  document.querySelectorAll('.view-on-map-btn').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.preventDefault();
+      const lat = parseFloat(this.getAttribute('data-lat'));
+      const lng = parseFloat(this.getAttribute('data-lng'));
+      if (!isNaN(lat) && !isNaN(lng)) {
+        const coord = ol.proj.fromLonLat([lng, lat]);
+        map.getView().animate({center: coord, zoom: 17, duration: 700});
+        // Remove previous temp marker if any
+        if (window.tempMarkerFeature) {
+          propertySource.removeFeature(window.tempMarkerFeature);
+          window.tempMarkerFeature = null;
+        }
+        window.tempMarkerFeature = new ol.Feature({
+          geometry: new ol.geom.Point(coord)
+        });
+        window.tempMarkerFeature.setStyle(layerStyles.selectedPoint);
+        propertySource.addFeature(window.tempMarkerFeature);
+      }
+    });
+  });
+
+  // Keep dropdown open when clicking inside (Bootstrap 5+)
+  document.querySelectorAll('.dropdown-checkbox-menu').forEach(function(menu) {
+    menu.addEventListener('click', function(e) {
+      e.stopPropagation();
+    });
+  });
+});
+
+  // Toggle Price filter dropdown
+document.getElementById('priceFilterBtn').addEventListener('click', function(e) {
+  e.stopPropagation();
+  const menu = document.getElementById('priceFilterMenu');
+  menu.style.display = (menu.style.display === 'block') ? 'none' : 'block';
+  document.getElementById('typeFilterMenu').style.display = 'none';
+});
+
+// Toggle Home Type filter dropdown
+document.getElementById('typeFilterBtn').addEventListener('click', function(e) {
+  e.stopPropagation();
+  const menu = document.getElementById('typeFilterMenu');
+  menu.style.display = (menu.style.display === 'block') ? 'none' : 'block';
+  document.getElementById('priceFilterMenu').style.display = 'none';
+});
+
+// Hide dropdowns when clicking outside
+document.addEventListener('click', function() {
+  document.getElementById('priceFilterMenu').style.display = 'none';
+  document.getElementById('typeFilterMenu').style.display = 'none';
+});
+</script>
+{% endblock %}

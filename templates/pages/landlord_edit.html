@@ -1,0 +1,56 @@
+{% extends 'base/users.html' %}
+
+{% block title %}Edit Property | RentEase{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* Override base template container margins for wider layout */
+  .container {
+    max-width: calc(100vw - 2rem) !important;
+    margin: 0 1rem !important;
+    padding: 1rem 0 5rem 0 !important;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<h2>Edit Property</h2>
+{% if session['role'] == 'landlord' and property and property.user_id == session['user_id'] %}
+<form method="POST">
+  <div class="mb-3">
+    <label for="title" class="form-label">Property Title</label>
+    <input type="text" id="title" name="title" class="form-control" value="{{ property.title }}" required>
+  </div>
+  <div class="mb-3">
+    <label for="description" class="form-label">Description</label>
+    <textarea id="description" name="description" class="form-control" rows="3" required>{{ property.description }}</textarea>
+  </div>
+  <div class="mb-3">
+    <label for="price" class="form-label">Price (₱)</label>
+    <input type="number" id="price" name="price" class="form-control" value="{{ property.price }}" required>
+  </div>
+  <div class="mb-3">
+    <label for="address" class="form-label">Location</label>
+    <input type="text" id="address" name="address" class="form-control" value="{{ property.address }}" required>
+  </div>
+  <div class="mb-3">
+    <label for="type" class="form-label">Property Type</label>
+    <select id="type" name="type" class="form-select" required>
+      <option {% if property.type == 'Apartment' %}selected{% endif %}>Apartment</option>
+      <option {% if property.type == 'House' %}selected{% endif %}>House</option>
+      <option {% if property.type == 'Studio' %}selected{% endif %}>Studio</option>
+    </select>
+  </div>
+  <div class="mb-3">
+    <label for="status" class="form-label">Status</label>
+    <select id="status" name="status" class="form-select" required>
+      <option {% if property.status == 'Available' %}selected{% endif %}>Available</option>
+      <option {% if property.status == 'Rented' %}selected{% endif %}>Rented</option>
+    </select>
+  </div>
+  <button type="submit" class="btn btn-primary">Save Changes</button>
+</form>
+{% else %}
+<p>You do not have permission to edit this listing.</p>
+{% endif %}
+{% endblock %}

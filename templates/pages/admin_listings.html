@@ -1,0 +1,38 @@
+{% extends 'base/admin.html' %}
+
+{% block title %}Admin Listings | RentEase{% endblock %}
+
+{% block content %}
+<h2>Manage Property Listings</h2>
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Title</th>
+            <th>Owner</th>
+            <th>Status</th>
+            <th>Date Posted</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for listing in listings %}
+        <tr>
+            <td>{{ listing.id }}</td>
+            <td>{{ listing.title }}</td>
+            <td>{{ listing.owner.name }}</td>
+            <td>{{ listing.status }}</td>
+            <td>{{ listing.date_posted.strftime('%Y-%m-%d') }}</td>
+            <td>
+                <a href="#" class="btn btn-success btn-sm">Verify</a>
+                <a href="#" class="btn btn-danger btn-sm">Reject</a>
+                <a href="#" class="btn btn-primary btn-sm">Edit</a>
+                <a href="#" class="btn btn-secondary btn-sm">Delete</a>
+            </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6">No listings found.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

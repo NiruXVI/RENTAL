@@ -1,0 +1,35 @@
+{% extends 'base/admin.html' %}
+
+{% block title %}Verify Users | RentEase Admin{% endblock %}
+
+{% block content %}
+<h2>Verify User Accounts</h2>
+<table class="table table-bordered">
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Email</th>
+      <th>Role</th>
+      <th>Action</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for user in pending_users %}
+    <tr>
+      <td>{{ user.name }}</td>
+      <td>{{ user.email }}</td>
+      <td>{{ user.role }}</td>
+      <td>
+        <form method="POST" style="display:inline;">
+          <input type="hidden" name="user_id" value="{{ user.id }}">
+          <button name="action" value="approve" class="btn btn-success btn-sm">Approve</button>
+          <button name="action" value="reject" class="btn btn-danger btn-sm">Reject</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="4">No users pending verification.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
