@@ -1,6 +1,6 @@
 from flask import Flask, render_template, redirect, url_for, request, session, flash, send_from_directory, abort, jsonify
 from flask_sqlalchemy import SQLAlchemy
-from flask_login import login_required, current_user
+from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_socketio import SocketIO, join_room, leave_room, emit
@@ -29,27 +29,13 @@ app.config['UPLOAD_FOLDER'] = os.path.join('static', 'uploads')
 db = SQLAlchemy(app)
 socketio = SocketIO(app)
 
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_IMAGE_EXTENSIONS
+# --- Flask-Login Setup ---
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
 
-def login_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if 'user_id' not in session:
-            flash('Please log in to access this page.', 'warning')
-            return redirect(url_for('login'))
-        return f(*args, **kwargs)
-    return decorated_function
-
-@app.after_request
-def after_request(response):
-    if 'user_id' in session:
-        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-        response.headers['Pragma'] = 'no-cache'
-        response.headers['Expires'] = '0'
-    return response
-
-class User(db.Model):
+# --- Models ---
+class User(UserMixin, db.Model):
     __tablename__ = 'tbl_users'
     id = db.Column('User_Id', db.Integer, primary_key=True)
     name = db.Column(db.String(255), nullable=False)
@@ -61,7 +47,12 @@ class User(db.Model):
     verification_requested = db.Column(db.Boolean, default=False)
     profile_pic = db.Column(db.String(255))
     properties = db.relationship('Property', backref='owner', lazy=True)
-    user_docs = db.relationship('UserDocument', backref='user', lazy=True)
+    user_docs = db.relationship('UserDocument', backref='user', cascade="all, delete-orphan")
+    
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
 
 class UserDocument(db.Model):
     __tablename__ = 'tbl_user_documents'
@@ -123,8 +114,10 @@ class AdminAction(db.Model):
     __tablename__ = 'tbl_adminaction'
     id = db.Column('action_id', db.Integer, primary_key=True)
     admin_id = db.Column(db.Integer, db.ForeignKey('tbl_users.User_Id'), nullable=False)
-    property_id = db.Column(db.Integer, db.ForeignKey('tbl_property.property_id'), nullable=False)
+    property_id = db.Column(db.Integer, db.ForeignKey('tbl_property.property_id'), nullable=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('tbl_users.User_Id'), nullable=True)
     action = db.Column(db.String(50))
+    target_name = db.Column(db.String(255))  # <-- add this
     date = db.Column(db.DateTime, default=datetime.utcnow)
 
 class Review(db.Model):
@@ -147,18 +140,31 @@ class UserMessage(db.Model):
 
 class PropertyReview(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    property_id = db.Column(db.Integer, db.ForeignKey('tbl_property.property_id'))  # fix here
-    user_id = db.Column(db.Integer, db.ForeignKey('tbl_users.User_Id'))             # fix here
+    property_id = db.Column(db.Integer, db.ForeignKey('tbl_property.property_id'))
+    user_id = db.Column(db.Integer, db.ForeignKey('tbl_users.User_Id'))
     content = db.Column(db.Text, nullable=False)
     rating = db.Column(db.Integer, nullable=False)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     user = db.relationship('User', backref='property_reviews')
     property = db.relationship('Property', backref='reviews')
 
+# --- Utility Functions ---
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_IMAGE_EXTENSIONS
+
+@app.after_request
+def after_request(response):
+    if 'user_id' in session:
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+    return response
+
+# --- Routes ---
 @app.route('/uploads/<path:filename>')
 @login_required
 def uploaded_file(filename):
-    user = User.query.get(session['user_id'])
+    user = User.query.get(current_user.id)
     # Allow all users to access profile pictures
     if filename.startswith('profile_pics/'):
         return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
@@ -192,28 +198,24 @@ def uploaded_file(filename):
 
 @app.route('/')
 def index():
-    if 'user_id' in session:
-        user = User.query.get(session['user_id'])
-        if user:
-            if user.role == 'admin':
-                return redirect(url_for('admin_dashboard'))
-            elif user.role == 'landlord':
-                return redirect(url_for('landlord_dashboard'))
-            else:
-                return redirect(url_for('listings'))
+    if current_user.is_authenticated:
+        if current_user.role == 'admin':
+            return redirect(url_for('admin_dashboard'))
+        elif current_user.role == 'landlord':
+            return redirect(url_for('landlord_dashboard'))
+        else:
+            return redirect(url_for('listings'))
     return render_template('pages/landing.html')
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    if 'user_id' in session:
-        user = User.query.get(session['user_id'])
-        if user:
-            if user.role == 'admin':
-                return redirect(url_for('admin_dashboard'))
-            elif user.role == 'landlord':
-                return redirect(url_for('landlord_dashboard'))
-            else:
-                return redirect(url_for('listings'))
+    if current_user.is_authenticated:
+        if current_user.role == 'admin':
+            return redirect(url_for('admin_dashboard'))
+        elif current_user.role == 'landlord':
+            return redirect(url_for('landlord_dashboard'))
+        else:
+            return redirect(url_for('listings'))
     error = None
     if request.method == 'POST':
         email = request.form.get('email')
@@ -224,10 +226,8 @@ def login():
         elif not check_password_hash(user.password, password):
             error = 'Invalid password.'
         else:
-            session.clear()
-            session['user_id'] = user.id
+            login_user(user)
             session['role'] = user.role
-            session['logged_in'] = True
             session.permanent = True
             if user.role == 'admin':
                 return redirect(url_for('admin_dashboard'))
@@ -238,17 +238,27 @@ def login():
         flash(error, 'danger')
     return render_template('auth/login.html')
 
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    session.clear()
+    response = app.make_response(redirect(url_for('index')))
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    flash('You have been logged out successfully.', 'info')
+    return response
+
 @app.route('/register', methods=['GET', 'POST'])
 def register():
-    if 'user_id' in session:
-        user = User.query.get(session['user_id'])
-        if user:
-            if user.role == 'admin':
-                return redirect(url_for('admin_dashboard'))
-            elif user.role == 'landlord':
-                return redirect(url_for('landlord_dashboard'))
-            else:
-                return redirect(url_for('listings'))
+    if current_user.is_authenticated:
+        if current_user.role == 'admin':
+            return redirect(url_for('admin_dashboard'))
+        elif current_user.role == 'landlord':
+            return redirect(url_for('landlord_dashboard'))
+        else:
+            return redirect(url_for('listings'))
     if request.method == 'POST':
         name = request.form.get('name')
         email = request.form.get('email')
@@ -277,7 +287,7 @@ def register():
 @app.route('/listings')
 @login_required
 def listings():
-    user = User.query.get(session['user_id'])
+    user = User.query.get(current_user.id)
     if not user.verified:
         flash('You must be verified to browse listings.', 'warning')
         return redirect(url_for('profile'))
@@ -306,8 +316,12 @@ def listings():
 @app.route('/rent/<int:property_id>', methods=['POST'])
 @login_required
 def rent_property(property_id):
-    user = User.query.get(session['user_id'])
+    user = User.query.get(current_user.id)
     property = Property.query.get_or_404(property_id)
+    # Prevent landlord from renting their own property
+    if property.user_id == user.id:
+        flash('You cannot rent your own property.', 'danger')
+        return redirect(url_for('listings'))
     if property.status not in ['For Rent', 'Available']:
         flash('This property is not available for rent.', 'danger')
         return redirect(url_for('listings'))
@@ -335,8 +349,8 @@ def rental_detail(rental_id):
 @app.route('/messages')
 @login_required
 def messages():
-    user = User.query.get(session['user_id'])
-    user_id = session['user_id']
+    user = User.query.get(current_user.id)
+    user_id = current_user.id
     sent = db.session.query(UserMessage.receiver_id).filter_by(sender_id=user_id)
     received = db.session.query(UserMessage.sender_id).filter_by(receiver_id=user_id)
     user_ids = set([uid for (uid,) in sent] + [uid for (uid,) in received])
@@ -390,7 +404,7 @@ def property_reviews(property_id):
         rating = int(request.form['rating'])
         review = PropertyReview(
             property_id=property_id,
-            user_id=session['user_id'],
+            user_id=current_user.id,
             content=content,
             rating=rating
         )
@@ -404,44 +418,59 @@ def property_reviews(property_id):
 @app.route('/landlord/dashboard')
 @login_required
 def landlord_dashboard():
-    if session.get('role') != 'landlord':
+    if current_user.role != 'landlord':
         flash('Access denied.', 'danger')
         return redirect(url_for('landlord_dashboard'))
-    user = User.query.get(session['user_id'])
-    properties = Property.query.filter_by(user_id=session['user_id']).all()
+    user = User.query.get(current_user.id)
+    properties = Property.query.filter_by(user_id=current_user.id).all()
+    # Attach tenant info to each rental request
+    for prop in properties:
+        for req in prop.rental_requests:
+            tenant = User.query.get(req.user_id)
+            req.tenant_name = tenant.name if tenant else "Unknown"
+            req.tenant_email = tenant.email if tenant else "Unknown"
     return render_template('pages/landlord_dashboard.html', properties=properties, user=user)
 
 @app.route('/landlord/request_action/<int:request_id>/<action>', methods=['POST'])
 @login_required
 def landlord_request_action(request_id, action):
-    # Fetch the request and property, ensure current_user is the landlord
     rental_request = RentalRequest.query.get_or_404(request_id)
     property = rental_request.property
-    if property.landlord_id != current_user.id:
+    if property.user_id != current_user.id:
         flash("Unauthorized.", "danger")
         return redirect(url_for('landlord_dashboard'))
 
     if action == 'accept':
         rental_request.status = 'accepted'
+        property.status = 'Rented'  # <-- update property status
+        # Optionally, reject all other pending requests for this property
+        other_requests = RentalRequest.query.filter(
+            RentalRequest.property_id == property.id,
+            RentalRequest.id != rental_request.id,
+            RentalRequest.status == 'Pending'
+        ).all()
+        for req in other_requests:
+            req.status = 'rejected'
+        db.session.commit()
         flash("Rental request accepted.", "success")
     elif action == 'reject':
         rental_request.status = 'rejected'
+        db.session.commit()
         flash("Rental request rejected.", "warning")
     else:
         flash("Invalid action.", "danger")
         return redirect(url_for('landlord_dashboard'))
 
-    db.session.commit()
     return redirect(url_for('landlord_dashboard'))
 
 @app.route('/landlord/delete/<int:property_id>', methods=['POST'])
 @login_required
 def delete_listing(property_id):
-    if session.get('role') != 'landlord':
+    if current_user.role != 'landlord':
         flash('Access denied.', 'danger')
         return redirect(url_for('landlord_dashboard'))
     property = Property.query.get_or_404(property_id)
-    if property.user_id != session['user_id']:
+    if property.user_id != current_user.id:
         flash('You do not have permission to delete this listing.', 'danger')
         return redirect(url_for('landlord_dashboard'))
     db.session.delete(property)
@@ -452,10 +481,10 @@ def delete_listing(property_id):
 @app.route('/landlord/add', methods=['GET', 'POST'])
 @login_required
 def add_listing():
-    if session.get('role') != 'landlord':
+    if current_user.role != 'landlord':
         flash('Access denied.', 'danger')
         return redirect(url_for('landlord_dashboard'))
-    user = User.query.get(session['user_id'])
+    user = User.query.get(current_user.id)
     if not user.verified:
         return render_template('pages/add_listing.html', user=user)
     if request.method == 'POST':
@@ -466,7 +495,7 @@ def add_listing():
         type_ = request.form.get('type')
         latitude = request.form.get('latitude')
         longitude = request.form.get('longitude')
-        user_id = session['user_id']
+        user_id = current_user.id
         new_property = Property(
             title=title,
             description=description,
@@ -511,11 +540,11 @@ def add_listing():
 @app.route('/landlord/edit/<int:property_id>', methods=['GET', 'POST'])
 @login_required
 def landlord_edit(property_id):
-    if session.get('role') != 'landlord':
+    if current_user.role != 'landlord':
         flash('Access denied.', 'danger')
         return redirect(url_for('landlord_dashboard'))
     property = Property.query.get_or_404(property_id)
-    if property.user_id != session['user_id']:
+    if property.user_id != current_user.id:
         flash('You do not have permission to edit this listing.', 'danger')
         return redirect(url_for('landlord_dashboard'))
     if request.method == 'POST':
@@ -533,12 +562,10 @@ def landlord_edit(property_id):
 @app.route('/select_lot', methods=['GET'])
 @login_required
 def select_lot():
-    # Load subdivisions
     subdiv_dbf_path = os.path.join(os.getcwd(), 'shapefilesforbasemap', 'Subdivision.dbf')
     subdivisions = list(DBF(subdiv_dbf_path, load=True))
     subdiv_list = [dict(r) for r in subdivisions]
     subdiv_names = sorted(set(s['subd_name'] for s in subdiv_list if 'subd_name' in s))
-
     return render_template(
         'pages/select_lot.html',
         subdivisions=subdiv_names,
@@ -548,7 +575,6 @@ def select_lot():
 @app.route('/get_houses/<subd>', methods=['GET'])
 @login_required
 def get_houses(subd):
-    # Map subdivision name to DBF filename (all lowercase, no spaces)
     dbf_map = {
         'vcdu': 'housevcdu.dbf',
         'sherwood': 'housesherwood.dbf',
@@ -565,7 +591,6 @@ def get_houses(subd):
         'camella1': 'housecamella1.dbf',
         'camella': 'housecamella.dbf'
     }
-    # Normalize subd to match key
     key = subd.lower().replace(' ', '')
     filename = dbf_map.get(key)
     if not filename:
@@ -575,9 +600,6 @@ def get_houses(subd):
         return jsonify([])
     houses = list(DBF(dbf_path, load=True))
     return jsonify([dict(h) for h in houses])
-    
-
-
 
 @app.route('/geojson/<filename>')
 @login_required
@@ -603,11 +625,10 @@ def geojson(filename):
         abort(404)
     return send_from_directory('shapefilesforbasemap', filename)
 
-
 @app.route('/profile', methods=['GET', 'POST'])
 @login_required
 def profile():
-    user = User.query.get(session['user_id'])
+    user = User.query.get(current_user.id)
     if request.method == 'POST':
         profile_pic = request.files.get('profile_pic')
         if profile_pic and allowed_file(profile_pic.filename):
@@ -630,26 +651,15 @@ def profile():
     user_docs = UserDocument.query.filter_by(user_id=user.id).all()
     return render_template('pages/profile.html', user=user, user_docs=user_docs)
 
-
 @app.route('/request_verification', methods=['POST'])
 @login_required
 def request_verification():
-    user = User.query.get(session['user_id'])
+    user = User.query.get(current_user.id)
     if not user.verified and not user.verification_requested:
         user.verification_requested = True
         db.session.commit()
         flash('Verification request sent. Please wait for admin approval.', 'info')
     return redirect(url_for('profile'))
-
-@app.route('/logout')
-def logout():
-    session.clear()
-    response = app.make_response(redirect(url_for('index')))
-    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-    response.headers['Pragma'] = 'no-cache'
-    response.headers['Expires'] = '0'
-    flash('You have been logged out successfully.', 'info')
-    return response
 
 @app.route('/api/map-data/<layer_name>')
 def get_map_data(layer_name):
@@ -661,27 +671,37 @@ def get_map_data(layer_name):
     return {'error': 'Layer not found'}, 404
 
 # --- Admin Routes ---
-
 @app.route('/admin')
 @login_required
 def admin_dashboard():
-    pending_listings_count = Property.query.filter_by(status='Pending').count()
+    # Count properties that are not yet verified
+    pending_listings_count = Property.query.filter_by(verified=False).count()
     users_count = User.query.count()
     rental_requests_count = RentalRequest.query.filter_by(status='Pending').count()
     flagged_listings_count = Property.query.filter_by(status='Flagged').count()
-    recent_activity = []
-    return render_template('pages/admin_dashboard.html',
+    recent_activity = AdminAction.query.order_by(AdminAction.date.desc()).limit(10).all()
+    return render_template(
+        'pages/admin_dashboard.html',
         pending_listings_count=pending_listings_count,
         users_count=users_count,
         rental_requests_count=rental_requests_count,
         flagged_listings_count=flagged_listings_count,
-        recent_activity=recent_activity)
+        recent_activity=recent_activity,
+        User=User,
+        Property=Property
+    )
 
 @app.route('/admin/listings')
 @login_required
 def admin_listings():
     listings = Property.query.all()
     return render_template('pages/admin_listings.html', listings=listings)
+
+@app.route('/admin/listings/view/<int:listing_id>')
+@login_required
+def admin_view_listing(listing_id):
+    listing = Property.query.get_or_404(listing_id)
+    return render_template('pages/admin_view_listing.html', listing=listing)
 
 @app.route('/admin/listings/verify/<int:listing_id>', methods=['POST'])
 @login_required
@@ -690,6 +710,14 @@ def admin_verify_listing(listing_id):
     listing.status = 'Verified'
     listing.verified = True
     db.session.commit()
+    # Log admin action
+    action = AdminAction(
+        admin_id=current_user.id,
+        property_id=listing.id,
+        action='approved'
+    )
+    db.session.add(action)
+    db.session.commit()
     flash('Listing verified successfully.', 'success')
     return redirect(url_for('admin_listings'))
 
@@ -697,9 +725,18 @@ def admin_verify_listing(listing_id):
 @login_required
 def admin_reject_listing(listing_id):
     listing = Property.query.get_or_404(listing_id)
-    listing.status = 'Rejected'
+    # Log admin action before deleting
+    action = AdminAction(
+        admin_id=current_user.id,
+        property_id=listing.id,
+        action='rejected listing',
+        target_name=listing.title
+    )
+    db.session.add(action)
     db.session.commit()
-    flash('Listing rejected.', 'danger')
+    db.session.delete(listing)
+    db.session.commit()
+    flash('Listing rejected and deleted.', 'danger')
     return redirect(url_for('admin_listings'))
 
 @app.route('/admin/listings/edit/<int:listing_id>', methods=['GET', 'POST'])
@@ -750,6 +787,14 @@ def admin_edit_user(user_id):
 @login_required
 def admin_delete_user(user_id):
     user = User.query.get_or_404(user_id)
+    # Log admin action BEFORE deleting the user
+    action_log = AdminAction(
+        admin_id=current_user.id,
+        user_id=user.id,
+        action='deleted user',
+        target_name=user.name
+    )
+    db.session.add(action_log)
     db.session.delete(user)
     db.session.commit()
     flash('User deleted.', 'info')
@@ -775,8 +820,18 @@ def admin_approve_request(request_id):
     property = Property.query.get(rental_request.property_id)
     property.status = 'Rented'
     db.session.commit()
+    # Log admin action
+    action_log = AdminAction(
+        admin_id=current_user.id,
+        property_id=property.id,
+        user_id=rental_request.user_id,
+        action='approved rental request'
+    )
+    db.session.add(action_log)
+    db.session.commit()
     flash('Rental request approved.', 'success')
     return redirect(url_for('admin_requests'))
+
 
 @app.route('/admin/requests/reject/<int:request_id>', methods=['POST'])
 @login_required
@@ -784,8 +839,18 @@ def admin_reject_request(request_id):
     rental_request = RentalRequest.query.get_or_404(request_id)
     rental_request.status = 'Rejected'
     db.session.commit()
+    # Log admin action
+    action_log = AdminAction(
+        admin_id=current_user.id,
+        property_id=rental_request.property_id,
+        user_id=rental_request.user_id,
+        action='rejected rental request'
+    )
+    db.session.add(action_log)
+    db.session.commit()
     flash('Rental request rejected.', 'danger')
     return redirect(url_for('admin_requests'))
+
 
 @app.route('/admin/requests/view/<int:request_id>')
 @login_required
@@ -795,10 +860,12 @@ def admin_view_request(request_id):
     request_obj.property_obj = Property.query.get(request_obj.property_id)
     return render_template('pages/admin_view_request.html', request=request_obj)
 
+
+
 @app.route('/admin/verify_users', methods=['GET', 'POST'])
 @login_required
 def admin_verify_users():
-    if session.get('role') != 'admin':
+    if current_user.role != 'admin':
         flash('Access denied.', 'danger')
         return redirect(url_for('login'))
     if request.method == 'POST':
@@ -810,18 +877,35 @@ def admin_verify_users():
                 user.verified = True
                 user.verification_requested = False
                 db.session.commit()
+                # Log admin action
+                action_log = AdminAction(
+                    admin_id=current_user.id,
+                    user_id=user.id,
+                    action='approved user'
+                )
+                db.session.add(action_log)
+                db.session.commit()
                 flash(f'User {user.name} verified.', 'success')
             elif action == 'reject':
                 user.verification_requested = False
+                db.session.commit()
+                # Log admin action
+                action_log = AdminAction(
+                    admin_id=current_user.id,
+                    user_id=user.id,
+                    action='rejected user'
+                )
+                db.session.add(action_log)
                 db.session.commit()
                 flash(f'User {user.name} verification rejected.', 'info')
     pending_users = User.query.filter_by(verification_requested=True).all()
     return render_template('pages/admin_verify_users.html', pending_users=pending_users)
 
+
 @app.route('/admin/verify_listings', methods=['GET', 'POST'])
 @login_required
 def admin_verify_listings():
-    if session.get('role') != 'admin':
+    if current_user.role != 'admin':
         flash('Access denied.', 'danger')
         return redirect(url_for('login'))
     if request.method == 'POST':
@@ -832,13 +916,33 @@ def admin_verify_listings():
             if action == 'approve':
                 prop.verified = True
                 db.session.commit()
+                # Log admin action
+                action_log = AdminAction(
+                    admin_id=current_user.id,
+                    property_id=prop.id,
+                    action='approved listing',
+                    target_name=prop.title
+                )
+                db.session.add(action_log)
+                db.session.commit()
                 flash(f'Listing {prop.title} verified.', 'success')
             elif action == 'reject':
+                # Log admin action before deleting
+                action_log = AdminAction(
+                    admin_id=current_user.id,
+                    property_id=prop.id,
+                    action='rejected listing',
+                    target_name=prop.title
+                )
+                db.session.add(action_log)
+                db.session.commit()
                 db.session.delete(prop)
                 db.session.commit()
                 flash(f'Listing {prop.title} rejected and deleted.', 'info')
     pending_listings = Property.query.filter_by(verified=False).all()
     return render_template('pages/admin_verify_listings.html', pending_listings=pending_listings)
+
+
 
 @socketio.on('join_room')
 def handle_join_room(data):
@@ -856,23 +960,18 @@ def handle_send_message(data):
     receiver_id = data['receiver_id']
     content = data.get('content', '')
     room = data['room']
-    attachment_url = data.get('attachment_url')  # <-- get the attachment
-
-    # Save message to DB (update your UserMessage model if needed)
+    attachment_url = data.get('attachment_url')
     msg = UserMessage(
         sender_id=sender_id,
         receiver_id=receiver_id,
         content=content,
-        attachment_url=attachment_url  # <-- save attachment
+        attachment_url=attachment_url
     )
     db.session.add(msg)
     db.session.commit()
-
-    # Get sender info
     sender = User.query.get(sender_id)
     sender_profile_pic = sender.profile_pic if sender and sender.profile_pic else None
     sender_name = sender.name if sender else "Unknown"
-
     emit('receive_message', {
         'sender_id': sender_id,
         'receiver_id': receiver_id,
@@ -880,7 +979,7 @@ def handle_send_message(data):
         'timestamp': msg.timestamp.strftime('%Y-%m-%d %H:%M'),
         'sender_profile_pic': sender_profile_pic,
         'sender_name': sender_name,
-        'attachment_url': attachment_url  # <-- emit attachment
+        'attachment_url': attachment_url
     }, room=room)
 
 with app.app_context():

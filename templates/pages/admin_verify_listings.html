@@ -22,6 +22,7 @@
       <td>{{ prop.address }}</td>
       <td>{{ prop.type }}</td>
       <td>
+        <a href="{{ url_for('admin_view_listing', listing_id=prop.id) }}" class="btn btn-info btn-sm mb-1">View</a>
         <form method="POST" style="display:inline;">
           <input type="hidden" name="property_id" value="{{ prop.id }}">
           <button name="action" value="approve" class="btn btn-success btn-sm">Approve</button>

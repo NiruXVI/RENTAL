@@ -1,0 +1,34 @@
+{% extends 'base/admin.html' %}
+
+{% block title %}View Listing | RentEase Admin{% endblock %}
+
+{% block content %}
+<h2>{{ listing.title }}</h2>
+<p><strong>Owner:</strong> {{ listing.owner.name }} ({{ listing.owner.email }})</p>
+<p><strong>Address:</strong> {{ listing.address }}</p>
+<p><strong>Type:</strong> {{ listing.type }}</p>
+<p><strong>Description:</strong> {{ listing.description }}</p>
+<p><strong>Status:</strong> {{ listing.status }}</p>
+<p><strong>Price:</strong> {{ listing.price }}</p>
+{% if listing.images %}
+  <h5>Property Images:</h5>
+  {% for img in listing.images %}
+  <a href="{{ url_for('uploaded_file', filename=img.image_file) }}" target="_blank">
+    <img src="{{ url_for('uploaded_file', filename=img.image_file) }}"
+         alt="Property Image"
+         style="width:800px; height:auto; margin:10px 5px 10px 0; border-radius:8px; border:1px solid #ccc; box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+  </a>
+{% endfor %}
+{% endif %}
+{% if listing.property_docs %}
+  <h5>Documents:</h5>
+  <ul>
+    {% for doc in listing.property_docs %}
+      <li>
+        <a href="{{ url_for('uploaded_file', filename=doc.file_path) }}" target="_blank">{{ doc.doc_type|capitalize }}</a>
+      </li>
+    {% endfor %}
+  </ul>
+{% endif %}
+<a href="{{ url_for('admin_verify_listings') }}" class="btn btn-secondary mt-3">Back to Verification/Listing</a>
+{% endblock %}

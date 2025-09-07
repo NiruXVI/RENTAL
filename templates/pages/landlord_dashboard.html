@@ -68,16 +68,16 @@
                 <span>
                   <b>{{ req.tenant_name }}</b> ({{ req.tenant_email }})<br>
                   <small>Status: 
-                    {% if req.status == 'pending' %}
+                    {% if req.status.lower() == 'pending' %}
                       <span class="badge bg-warning text-dark">Pending</span>
-                    {% elif req.status == 'accepted' %}
+                    {% elif req.status.lower() == 'accepted' %}
                       <span class="badge bg-success">Accepted</span>
-                    {% elif req.status == 'rejected' %}
+                    {% elif req.status.lower() == 'rejected' %}
                       <span class="badge bg-danger">Rejected</span>
                     {% endif %}
                   </small>
                 </span>
-                {% if req.status == 'pending' %}
+                {% if req.status.lower() == 'pending' %}
                 <form method="POST" action="{{ url_for('landlord_request_action', request_id=req.id, action='accept') }}" style="display:inline;">
                   <button type="submit" class="btn btn-sm btn-success">Accept</button>
                 </form>

@@ -259,9 +259,7 @@
   <div class="listings-section">
     <div class="bg-white rounded shadow p-3" style="min-width:320px;">
       <div class="d-flex flex-wrap align-items-center gap-2 mb-3" style="border-bottom:1px solid #eee; padding-bottom:0.5rem;">
-        <div class="filter-group">
-          <!-- Removed For Rent filter -->
-        </div>
+        <div class="filter-group"></div>
         <div class="filter-group">
           <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="priceFilterBtn">Price</button>
           <div class="dropdown-filter-menu" id="priceFilterMenu">
@@ -333,10 +331,12 @@
                 data-address="{{ property.address|replace('\"', '\\\"')|replace('\n', ' ') }}">
                 View on Map
               </button>
-              {% if property.status == 'For Rent' or property.status == 'Available' %}
+              {% if (property.status == 'For Rent' or property.status == 'Available') and property.user_id != current_user.id %}
                 <form method="POST" action="{{ url_for('rent_property', property_id=property.id) }}" style="display:inline;">
                   <button type="submit" class="btn btn-sm btn-success">Rent this Property</button>
                 </form>
+              {% elif property.user_id == current_user.id %}
+                <button class="btn btn-sm btn-secondary" disabled>You own this property</button>
               {% endif %}
             </div>
           </div>

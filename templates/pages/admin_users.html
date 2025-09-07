@@ -23,7 +23,9 @@
             <td>{{ user.role }}</td>
             <td>
                 <a href="#" class="btn btn-primary btn-sm">Edit</a>
-                <a href="#" class="btn btn-danger btn-sm">Delete</a>
+                <form method="POST" action="{{ url_for('admin_delete_user', user_id=user.id) }}" style="display:inline;">
+                    <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                </form>
                 <a href="#" class="btn btn-warning btn-sm">Manage Roles</a>
             </td>
         </tr>
