@@ -1,19 +1,34 @@
 from flask import Flask, render_template, redirect, url_for, request, session, flash, send_from_directory, abort, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
-from datetime import datetime
+from datetime import datetime, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_socketio import SocketIO, join_room, leave_room, emit
 from sqlalchemy import or_, and_
 from functools import wraps
+from random import randint
 import os
 from werkzeug.utils import secure_filename
 from dbfread import DBF
+
+
+
+# --- Flask-Mail for email notifications ---
+from flask_mail import Mail, Message
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///rentease.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# --- Flask-Mail Config ---
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USERNAME'] = 'nikuronishina@gmail.com'  # Replace with your Gmail
+app.config['MAIL_PASSWORD'] = 'wxsa jxmv fqav yetc'  # Use an App Password
+mail = Mail(app)
+
 
 UPLOAD_FOLDER = os.path.join(os.getcwd(), 'static', 'uploads')
 PROFILE_PICS_FOLDER = os.path.join(UPLOAD_FOLDER, 'profile_pics')
@@ -46,9 +61,10 @@ class User(UserMixin, db.Model):
     verified = db.Column(db.Boolean, default=False)
     verification_requested = db.Column(db.Boolean, default=False)
     profile_pic = db.Column(db.String(255))
+    otp_code = db.Column(db.String(10))  # <-- Add this
+    otp_expiry = db.Column(db.DateTime)  # <-- And this
     properties = db.relationship('Property', backref='owner', lazy=True)
     user_docs = db.relationship('UserDocument', backref='user', cascade="all, delete-orphan")
-    
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -117,7 +133,7 @@ class AdminAction(db.Model):
     property_id = db.Column(db.Integer, db.ForeignKey('tbl_property.property_id'), nullable=True)
     user_id = db.Column(db.Integer, db.ForeignKey('tbl_users.User_Id'), nullable=True)
     action = db.Column(db.String(50))
-    target_name = db.Column(db.String(255))  # <-- add this
+    target_name = db.Column(db.String(255))
     date = db.Column(db.DateTime, default=datetime.utcnow)
 
 class Review(db.Model):
@@ -152,6 +168,13 @@ class PropertyReview(db.Model):
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_IMAGE_EXTENSIONS
 
+def send_verification_email(user, subject, body):
+    try:
+        msg = Message(subject, recipients=[user.email], body=body, sender=app.config['MAIL_USERNAME'])
+        mail.send(msg)
+    except Exception as e:
+        print(f"Failed to send email: {e}")
+
 @app.after_request
 def after_request(response):
     if 'user_id' in session:
@@ -159,6 +182,7 @@ def after_request(response):
         response.headers['Pragma'] = 'no-cache'
         response.headers['Expires'] = '0'
     return response
+
 
 # --- Routes ---
 @app.route('/uploads/<path:filename>')
@@ -277,12 +301,51 @@ def register():
             flash('Invalid user type.', 'danger')
             return render_template('auth/register.html')
         hashed_password = generate_password_hash(password)
-        new_user = User(name=name, email=email, password=hashed_password, contact=contact, role=user_type)
+        otp = str(randint(100000, 999999))
+        otp_expiry = datetime.utcnow() + timedelta(minutes=10)
+        new_user = User(
+            name=name,
+            email=email,
+            password=hashed_password,
+            contact=contact,
+            role=user_type,
+            verified=False,
+            otp_code=otp,
+            otp_expiry=otp_expiry
+        )
         db.session.add(new_user)
         db.session.commit()
-        flash('Registration successful! You can now log in.', 'success')
-        return redirect(url_for('login'))
+        # Send OTP email
+        send_verification_email(
+            new_user,
+            "Your RentEase OTP Code",
+            f"Hello {name},\n\nYour OTP code is: {otp}\nIt will expire in 10 minutes.\n\nThank you!"
+        )
+        flash('Registration successful! Please check your email for the OTP code.', 'info')
+        return redirect(url_for('verify_otp', email=email))
     return render_template('auth/register.html')
+
+
+
+@app.route('/verify_otp/<email>', methods=['GET', 'POST'])
+def verify_otp(email):
+    user = User.query.filter_by(email=email).first()
+    if not user:
+        flash('User not found.', 'danger')
+        return redirect(url_for('register'))
+    if request.method == 'POST':
+        otp_input = request.form.get('otp')
+        if user.otp_code == otp_input and user.otp_expiry and datetime.utcnow() < user.otp_expiry:
+            # Do not set user.verified = True here to avoid automatic verification
+            user.otp_code = None
+            user.otp_expiry = None
+            db.session.commit()
+            flash('Registration complete! Please upload your documents and request verification to access all features.', 'success')
+            return redirect(url_for('login'))
+        else:
+            flash('Invalid or expired OTP code.', 'danger')
+    return render_template('auth/verify_otp.html', email=email)
+
 
 @app.route('/listings')
 @login_required
@@ -881,10 +944,17 @@ def admin_verify_users():
                 action_log = AdminAction(
                     admin_id=current_user.id,
                     user_id=user.id,
-                    action='approved user'
+                    action='approved user',
+                    target_name=user.name
                 )
                 db.session.add(action_log)
                 db.session.commit()
+                # Send email notification
+                send_verification_email(
+                    user,
+                    "Your RentEase account has been verified",
+                    f"Hello {user.name},\n\nYour account has been verified by the admin. You can now use all features of RentEase.\n\nThank you!"
+                )
                 flash(f'User {user.name} verified.', 'success')
             elif action == 'reject':
                 user.verification_requested = False
@@ -893,14 +963,14 @@ def admin_verify_users():
                 action_log = AdminAction(
                     admin_id=current_user.id,
                     user_id=user.id,
-                    action='rejected user'
+                    action='rejected user',
+                    target_name=user.name
                 )
                 db.session.add(action_log)
                 db.session.commit()
                 flash(f'User {user.name} verification rejected.', 'info')
     pending_users = User.query.filter_by(verification_requested=True).all()
     return render_template('pages/admin_verify_users.html', pending_users=pending_users)
-
 
 @app.route('/admin/verify_listings', methods=['GET', 'POST'])
 @login_required
@@ -925,6 +995,14 @@ def admin_verify_listings():
                 )
                 db.session.add(action_log)
                 db.session.commit()
+                # Send email notification to property owner
+                owner = User.query.get(prop.user_id)
+                if owner:
+                    send_verification_email(
+                        owner,
+                        "Your property listing has been verified",
+                        f"Hello {owner.name},\n\nYour property listing '{prop.title}' has been verified and is now visible to users.\n\nThank you!"
+                    )
                 flash(f'Listing {prop.title} verified.', 'success')
             elif action == 'reject':
                 # Log admin action before deleting
@@ -941,6 +1019,7 @@ def admin_verify_listings():
                 flash(f'Listing {prop.title} rejected and deleted.', 'info')
     pending_listings = Property.query.filter_by(verified=False).all()
     return render_template('pages/admin_verify_listings.html', pending_listings=pending_listings)
+
 
 
 

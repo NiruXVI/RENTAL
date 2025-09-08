@@ -1,0 +1,13 @@
+{% extends 'base/authentication.html' %}
+{% block content %}
+<div class="container mt-5">
+    <h3>Email Verification</h3>
+    <form method="POST">
+        <div class="mb-3">
+            <label for="otp" class="form-label">Enter the OTP sent to {{ email }}</label>
+            <input type="text" class="form-control" id="otp" name="otp" required maxlength="6">
+        </div>
+        <button type="submit" class="btn btn-primary">Verify</button>
+    </form>
+</div>
+{% endblock %}

@@ -237,6 +237,15 @@
         </div>
       </div>
     </div>
+    <div class="modal fade" id="rentModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content text-center">
+      <div class="modal-body">
+        <h5 id="rentModalMessage">Rent request sent!</h5>
+      </div>
+    </div>
+  </div>
+</div>
     <div id="map"></div>
     <div style="margin-top:1rem;">
       <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 15px; margin-bottom: 1rem;">
@@ -332,8 +341,8 @@
                 View on Map
               </button>
               {% if (property.status == 'For Rent' or property.status == 'Available') and property.user_id != current_user.id %}
-                <form method="POST" action="{{ url_for('rent_property', property_id=property.id) }}" style="display:inline;">
-                  <button type="submit" class="btn btn-sm btn-success">Rent this Property</button>
+                <form method="POST" action="{{ url_for('rent_property', property_id=property.id) }}" style="display:inline;" class="rent-form">
+                  <button type="submit" class="btn btn-sm btn-success rent-btn">Rent this Property</button>
                 </form>
               {% elif property.user_id == current_user.id %}
                 <button class="btn btn-sm btn-secondary" disabled>You own this property</button>
@@ -744,6 +753,30 @@ window.searchBarangay = function(searchTerm) {
     });
   });
 });
+
+// Intercept rent form submission
+document.querySelectorAll('.rent-form').forEach(form => {
+  form.addEventListener('submit', function(e) {
+    e.preventDefault(); // stop default form submit for now
+    const modalEl = document.getElementById('rentModal');
+    const modalMsg = document.getElementById('rentModalMessage');
+
+    // Show message (you can customize text per property if needed)
+    modalMsg.textContent = "Renting request has been sent!";
+
+    // Show Bootstrap modal
+    const rentModal = new bootstrap.Modal(modalEl);
+    rentModal.show();
+
+    // Auto close after 2 seconds
+    setTimeout(() => {
+      rentModal.hide();
+      // After showing message, now submit the form for real
+      form.submit();
+    }, 1000);
+  });
+});
+
 
   // Toggle Price filter dropdown
 document.getElementById('priceFilterBtn').addEventListener('click', function(e) {
