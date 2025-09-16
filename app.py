@@ -7,6 +7,8 @@ from flask_socketio import SocketIO, join_room, leave_room, emit
 from sqlalchemy import or_, and_
 from functools import wraps
 from random import randint
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail
 import os
 from werkzeug.utils import secure_filename
 from dbfread import DBF
@@ -175,7 +177,23 @@ def send_verification_email(user, subject, body):
         mail.send(msg)
     except Exception as e:
         print(f"Failed to send email: {e}")
-
+        
+def send_otp_email(to_email, otp_code):
+    message = Mail(
+        from_email='noreply@rentease.com',  # must be verified in SendGrid
+        to_emails=to_email,
+        subject='Your OTP Code',
+        plain_text_content=f'Your OTP code is {otp_code}'
+    )
+    try:
+        sg = SendGridAPIClient(os.environ.get('SENDGRID_API_KEY'))
+        response = sg.send(message)
+        print(response.status_code)
+        return True
+    except Exception as e:
+        print(f"Error sending email: {e}")
+        return False
+        
 @app.after_request
 def after_request(response):
     if 'user_id' in session:
