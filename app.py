@@ -7,9 +7,9 @@ from flask_socketio import SocketIO, join_room, leave_room, emit
 from sqlalchemy import or_, and_
 from functools import wraps
 from random import randint
+import os
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
-import os
 from werkzeug.utils import secure_filename
 from dbfread import DBF
 
@@ -24,12 +24,11 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///rentease.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # --- Flask-Mail Config ---
-app.config['MAIL_SERVER'] = 'smtp.sendgrid.net'
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USERNAME'] = 'apikey'  # <-- must literally be 'apikey'
-app.config['MAIL_PASSWORD'] = os.environ.get('SENDGRID_API_KEY')  # store your API key in env var
-app.config['MAIL_DEFAULT_SENDER'] = 'nikuronishina@gmail.com'  # or verified sender in SendGrid
+app.config['MAIL_USERNAME'] = 'nikuronishina@gmail.com'  # Replace with your Gmail
+app.config['MAIL_PASSWORD'] = 'wxsa jxmv fqav yetc'  # Use an App Password
 mail = Mail(app)
 
 
@@ -177,23 +176,7 @@ def send_verification_email(user, subject, body):
         mail.send(msg)
     except Exception as e:
         print(f"Failed to send email: {e}")
-        
-def send_otp_email(to_email, otp_code):
-    message = Mail(
-        from_email='noreply@rentease.com',  # must be verified in SendGrid
-        to_emails=to_email,
-        subject='Your OTP Code',
-        plain_text_content=f'Your OTP code is {otp_code}'
-    )
-    try:
-        sg = SendGridAPIClient(os.environ.get('SENDGRID_API_KEY'))
-        response = sg.send(message)
-        print(response.status_code)
-        return True
-    except Exception as e:
-        print(f"Error sending email: {e}")
-        return False
-        
+
 @app.after_request
 def after_request(response):
     if 'user_id' in session:
@@ -1093,6 +1076,26 @@ with app.app_context():
         )
         db.session.add(admin)
         db.session.commit()
+
+
+
+# --- Utility: Send OTP Email with SendGrid ---
+def send_otp_email(to_email, otp_code):
+    message = Mail(
+        from_email=os.environ.get("MAIL_DEFAULT_SENDER", "nikuronishina@gmail.com"),
+        to_emails=to_email,
+        subject="Your OTP Code",
+        plain_text_content=f"Your OTP code is {otp_code}",
+    )
+    try:
+        sg = SendGridAPIClient(os.environ.get("SENDGRID_API_KEY"))
+        response = sg.send(message)
+        print(f"SendGrid response: {response.status_code}")
+        return True
+    except Exception as e:
+        print(f"Error sending OTP: {e}")
+        return False
+
 
 if __name__ == '__main__':
     socketio.run(app, debug=True)
