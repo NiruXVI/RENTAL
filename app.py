@@ -22,11 +22,12 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///rentease.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # --- Flask-Mail Config ---
-app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+app.config['MAIL_SERVER'] = 'smtp.sendgrid.net'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USERNAME'] = 'nikuronishina@gmail.com'  # Replace with your Gmail
-app.config['MAIL_PASSWORD'] = 'wxsa jxmv fqav yetc'  # Use an App Password
+app.config['MAIL_USERNAME'] = 'apikey'  # <-- must literally be 'apikey'
+app.config['MAIL_PASSWORD'] = os.environ.get('SENDGRID_API_KEY')  # store your API key in env var
+app.config['MAIL_DEFAULT_SENDER'] = 'nikuronishina@gmail.com'  # or verified sender in SendGrid
 mail = Mail(app)
 
 
